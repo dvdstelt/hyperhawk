@@ -10,7 +10,7 @@
 ## What it does
 
 - Checks **internal links** (relative and root-relative paths) by verifying the file exists on disk
-- Checks **same-org GitHub links** (`https://github.com/your-org/...`) via the GitHub API
+- Checks **same-org GitHub links** (`https://github.com/dvdstelt/...`) via the GitHub API
 - Checks **external HTTP/HTTPS links** with configurable timeout and retry logic
 - On **pull requests**: posts inline review comments on the changed lines, with suggestion blocks you can apply in one click
 - On **push / schedule**: writes a summary table to the workflow's Step Summary and emits warning annotations
@@ -50,12 +50,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: your-org/hyperhawk@v1
+      - uses: dvdstelt/hyperhawk@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-Replace `your-org/hyperhawk@v1` with the actual owner and tag of this repository once published.
 
 ---
 
@@ -83,7 +81,7 @@ To fail the workflow on broken links, enable strict mode in one of two ways:
 **Per-workflow input:**
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     strict: true
@@ -94,7 +92,7 @@ To fail the workflow on broken links, enable strict mode in one of two ways:
 Go to **Settings > Secrets and variables > Actions** and create a secret named `LINK_CHECK_STRICT` with the value `true`. Then pass it in the workflow:
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     strict: ${{ secrets.LINK_CHECK_STRICT }}
@@ -109,7 +107,7 @@ This way you can enable strict mode for specific repositories without changing t
 The `ignore-patterns` input accepts a comma-separated list of JavaScript regular expressions. Any link URL that matches at least one pattern is skipped.
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     ignore-patterns: 'localhost,example\.com,^https://internal\.'
@@ -190,7 +188,7 @@ To check links into private repos you need a token with broader access. There ar
 Create a fine-grained PAT under **Settings > Developer settings > Personal access tokens > Fine-grained tokens**. Set the resource owner to your organisation, grant access to the relevant repositories (or all repositories), and give it `Contents: Read` permission. Store it as a secret and pass it to the action:
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.HYPERHAWK_PAT }}
 ```
@@ -219,7 +217,7 @@ Then generate a short-lived installation token at the start of each workflow run
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ steps.app-token.outputs.token }}
 ```
@@ -233,7 +231,7 @@ The installation token is scoped to exactly the repositories you chose during ap
 ### Minimal setup
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -241,7 +239,7 @@ The installation token is scoped to exactly the repositories you chose during ap
 ### Skip external link checking (air-gapped / restricted runners)
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     check-external: false
@@ -250,7 +248,7 @@ The installation token is scoped to exactly the repositories you chose during ap
 ### Scan only a specific folder
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     files: 'docs/**/*.md'
@@ -259,7 +257,7 @@ The installation token is scoped to exactly the repositories you chose during ap
 ### High-concurrency scan for large repos
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     concurrency: 20
@@ -269,7 +267,7 @@ The installation token is scoped to exactly the repositories you chose during ap
 ### Ignore specific domains and enable strict mode
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     ignore-patterns: 'localhost,example\.com'
@@ -308,7 +306,7 @@ Some sites block requests from CI runners or require cookies. Add the domain to 
 Reduce `concurrency` or provide a token with higher rate limits via a personal access token stored in a secret:
 
 ```yaml
-- uses: your-org/hyperhawk@v1
+- uses: dvdstelt/hyperhawk@v1
   with:
     token: ${{ secrets.MY_PAT }}
 ```
