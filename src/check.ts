@@ -228,7 +228,7 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
       const r = {
         ok: false,
         statusCode: status,
-        error: status === 404 ? `Repository not found: ${repoOwner}/${repoName}` : `API error: ${String(err)}`,
+        error: status === 404 ? `Repository not found (or not accessible with the provided token): ${repoOwner}/${repoName}` : `API error: ${String(err)}`,
       };
       resultCache.set(link.url, r);
       return { link, ...r };
