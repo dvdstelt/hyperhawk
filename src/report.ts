@@ -55,17 +55,40 @@ function parseMarker(body: string | null | undefined): { url: string } | null {
 }
 
 function formatBrokenComment(result: CheckResult): string {
-  const { link, error, suggestion } = result;
-  const lines: string[] = [
-    `**HyperHawk** found a broken link: \`${link.url}\``,
-  ];
-  if (error) lines.push(`**Error:** ${error}`);
+  const { link, suggestion, correctedUrl, isFuzzyMatch, statusCode } = result;
+  const lines: string[] = [];
+
+  if (link.type === 'internal') {
+    if (correctedUrl) {
+      const qualifier = isFuzzyMatch ? ' as a close match' : ' elsewhere in the repository';
+      lines.push(
+        `The link points to \`${link.url}\`, but this file does not exist.`,
+        `\`${correctedUrl}\` was found${qualifier} — did you mean to link there?`
+      );
+    } else {
+      lines.push(
+        `The link points to \`${link.url}\`, but this file could not be found in the repository.`,
+        'Update the path or remove the link if it is no longer needed.'
+      );
+    }
+  } else if (link.type === 'same-org') {
+    const status = statusCode ? ` (HTTP ${statusCode})` : '';
+    lines.push(
+      `The link to \`${link.url}\` could not be resolved${status}.`,
+      'Verify the repository name, branch, and file path are correct.'
+    );
+  } else {
+    const status = statusCode ? `HTTP ${statusCode}` : 'an error';
+    lines.push(
+      `The external link returns ${status}. Verify the URL is still valid or remove the link.`,
+      `URL: \`${link.url}\``
+    );
+  }
 
   if (suggestion) {
-    lines.push('', '**Suggested fix:**', '```suggestion', suggestion, '```');
-  } else {
-    lines.push('', 'Please verify and update this link manually.');
+    lines.push('', '```suggestion', suggestion, '```');
   }
+
   return lines.join('\n');
 }
 
@@ -181,8 +204,11 @@ async function reportPR(
   // GitHub expands the Files Changed view to show annotated lines even
   // when they are not part of the diff hunks.
   for (const result of notInDiff) {
+    const hint = result.correctedUrl
+      ? ` Did you mean \`${result.correctedUrl}\`${result.isFuzzyMatch ? ' (fuzzy match)' : ''}?`
+      : '';
     core.warning(
-      `Broken ${result.link.type} link: ${result.link.url} — ${result.error ?? 'broken'}`,
+      `Broken ${result.link.type} link: \`${result.link.url}\`${hint}`,
       {
         file: result.link.filePath,
         startLine: result.link.line,

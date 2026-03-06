@@ -15,6 +15,8 @@ export interface CheckResult {
   statusCode?: number;
   error?: string;
   suggestion?: string;       // replacement line content (for GitHub suggestion blocks)
+  correctedUrl?: string;     // corrected URL alone, used in annotation messages and comment text
+  isFuzzyMatch?: boolean;    // true when correctedUrl came from fuzzy matching
   suggestionOnly?: boolean;  // true when link is valid but a root-relative conversion is suggested
 }
 

@@ -191,12 +191,13 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
   }
 
   let suggestion: string | undefined;
+  let correctedUrl: string | undefined;
   if (correctedAbs) {
     const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
-    const rootRelUrl = toRootRelative(correctedAbs, config.repoRoot) + anchor;
+    correctedUrl = toRootRelative(correctedAbs, config.repoRoot) + anchor;
     const note = isFuzzy ? '  <!-- fuzzy match - please verify -->' : '';
     // trimEnd() strips trailing \r on CRLF files, which would break GitHub's suggestion block
-    suggestion = link.lineContent.trimEnd().replace(url, rootRelUrl) + note;
+    suggestion = link.lineContent.trimEnd().replace(url, correctedUrl) + note;
   }
 
   return {
@@ -204,6 +205,8 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
     ok: false,
     error: `File not found: ${resolvedPath}`,
     suggestion,
+    correctedUrl,
+    isFuzzyMatch: isFuzzy && !!correctedAbs,
   };
 }
 
