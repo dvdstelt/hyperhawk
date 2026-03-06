@@ -4,6 +4,36 @@ import { CheckResult } from './types';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
+// Maps file path -> set of line numbers visible in the PR diff (right/new side)
+type DiffLineMap = Map<string, Set<number>>;
+
+/**
+ * Parse the patch string returned by listFiles() and return the set of
+ * line numbers (on the new/right side) that are visible in the diff.
+ * Only lines prefixed with '+' (added) or ' ' (context) are commentable.
+ */
+function parseDiffLines(patch: string | undefined): Set<number> {
+  const visible = new Set<number>();
+  if (!patch) return visible;
+
+  const hunkHeader = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+  let currentLine = 0;
+
+  for (const line of patch.split('\n')) {
+    const match = hunkHeader.exec(line);
+    if (match) {
+      currentLine = parseInt(match[1], 10);
+      continue;
+    }
+    if (line.startsWith('+') || line.startsWith(' ')) {
+      visible.add(currentLine++);
+    }
+    // '-' lines belong to the old file only; don't advance currentLine
+  }
+
+  return visible;
+}
+
 function formatBrokenComment(result: CheckResult): string {
   const { link, error, suggestion } = result;
   const lines: string[] = [
@@ -32,14 +62,14 @@ function formatImprovementComment(result: CheckResult): string {
 }
 
 /**
- * Report in a PR context: inline review comments for files in the diff,
- * summary comment for broken links in unchanged files.
- * Improvement suggestions are only posted for files in the diff.
+ * Report in a PR context.
+ * Inline comments are only posted for lines that are visible in the diff.
+ * Everything else falls back to a summary comment.
  */
 async function reportPR(
   results: CheckResult[],
   octokit: Octokit,
-  changedFiles: Set<string>
+  diffLines: DiffLineMap
 ): Promise<void> {
   const broken = results.filter(r => !r.ok);
   const improvements = results.filter(r => r.ok && r.suggestionOnly && r.suggestion);
@@ -56,9 +86,12 @@ async function reportPR(
   const reviewComments: ReviewComment[] = [];
   const notInDiff: CheckResult[] = [];
 
-  // Broken links in changed files -> inline comments
+  const isCommentable = (filePath: string, line: number): boolean =>
+    diffLines.has(filePath) && (diffLines.get(filePath)?.has(line) ?? false);
+
+  // Broken links: inline if line is visible in diff, otherwise summary
   for (const result of broken) {
-    if (changedFiles.has(result.link.filePath)) {
+    if (isCommentable(result.link.filePath, result.link.line)) {
       reviewComments.push({
         path: result.link.filePath,
         line: result.link.line,
@@ -70,9 +103,9 @@ async function reportPR(
     }
   }
 
-  // Improvement suggestions only for changed files
+  // Improvement suggestions: inline only if line is visible in diff
   for (const result of improvements) {
-    if (changedFiles.has(result.link.filePath)) {
+    if (isCommentable(result.link.filePath, result.link.line)) {
       reviewComments.push({
         path: result.link.filePath,
         line: result.link.line,
@@ -95,33 +128,23 @@ async function reportPR(
       core.info(`Posted review with ${reviewComments.length} inline comment(s)`);
     } catch (err) {
       core.warning(`Failed to post inline review comments: ${String(err)}`);
-      notInDiff.push(...broken.filter(r => changedFiles.has(r.link.filePath)));
+      // Fall back: demote all inline candidates to annotations
+      notInDiff.push(...broken.filter(r => isCommentable(r.link.filePath, r.link.line)));
     }
   }
 
-  // Summary comment for broken links in files not in the diff
-  if (notInDiff.length > 0) {
-    const rows = notInDiff
-      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` | ${r.error ?? 'broken'} |`)
-      .join('\n');
-
-    const body = [
-      '## HyperHawk: Broken Links in Unchanged Files',
-      '',
-      'The following broken links were found in files not modified by this PR:',
-      '',
-      '| File | Line | URL | Error |',
-      '|------|------|-----|-------|',
-      rows,
-      '',
-      'These links need to be fixed separately.',
-    ].join('\n');
-
-    try {
-      await octokit.rest.issues.createComment({ owner, repo, issue_number: pullNumber, body });
-    } catch (err) {
-      core.warning(`Failed to post summary comment: ${String(err)}`);
-    }
+  // For broken links outside the visible diff, emit check annotations.
+  // GitHub automatically expands the Files Changed view to show annotated
+  // lines even when they are not part of the diff hunks.
+  for (const result of notInDiff) {
+    core.warning(
+      `Broken ${result.link.type} link: ${result.link.url} — ${result.error ?? 'broken'}`,
+      {
+        file: result.link.filePath,
+        startLine: result.link.line,
+        title: 'Broken Link',
+      }
+    );
   }
 }
 
@@ -210,7 +233,7 @@ export async function report(results: CheckResult[], octokit: Octokit): Promise<
     const repo = context.repo.repo;
     const pullNumber = pr.number as number;
 
-    let changedFiles = new Set<string>();
+    let diffLines: DiffLineMap = new Map();
     try {
       const filesResponse = await octokit.rest.pulls.listFiles({
         owner,
@@ -218,12 +241,16 @@ export async function report(results: CheckResult[], octokit: Octokit): Promise<
         pull_number: pullNumber,
         per_page: 100,
       });
-      changedFiles = new Set(filesResponse.data.map((f: { filename: string }) => f.filename));
+      for (const file of filesResponse.data) {
+        if (file.status !== 'removed') {
+          diffLines.set(file.filename, parseDiffLines(file.patch));
+        }
+      }
     } catch (err) {
       core.warning(`Failed to fetch PR file list: ${String(err)}`);
     }
 
-    await reportPR(results, octokit, changedFiles);
+    await reportPR(results, octokit, diffLines);
   } else {
     reportSummary(results);
   }
