@@ -26,8 +26,12 @@ async function getChangedMdFiles(octokit: ReturnType<typeof getOctokit>): Promis
     .map((f: { filename: string }) => f.filename);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { version } = require('../package.json') as { version: string };
+
 async function run(): Promise<void> {
   try {
+    core.info(`HyperHawk v${version}`);
     // Load config
     const token = core.getInput('token', { required: true });
     const filesInput = core.getInput('files') || '**/*.md,**/*.mdx';
