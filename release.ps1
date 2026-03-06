@@ -44,9 +44,14 @@ git commit -m "chore: release $tag"
 if ($LASTEXITCODE -ne 0) { Write-Error "git commit failed"; exit $LASTEXITCODE }
 git tag $tag
 if ($LASTEXITCODE -ne 0) { Write-Error "git tag failed"; exit $LASTEXITCODE }
+$floatingTag = "v$maj"
+git tag -f $floatingTag
+if ($LASTEXITCODE -ne 0) { Write-Error "git floating tag failed"; exit $LASTEXITCODE }
 git push origin $branch
 if ($LASTEXITCODE -ne 0) { Write-Error "git push branch failed"; exit $LASTEXITCODE }
 git push origin $tag
 if ($LASTEXITCODE -ne 0) { Write-Error "git push tag failed"; exit $LASTEXITCODE }
+git push origin $floatingTag --force
+if ($LASTEXITCODE -ne 0) { Write-Error "git push floating tag failed"; exit $LASTEXITCODE }
 
 Write-Host "Done - $tag pushed to origin"
