@@ -35,14 +35,8 @@ function parseDiffLines(patch: string | undefined): Set<number> {
 
 /**
  * Hidden marker appended to every comment body.
- * Keyed only on URL - no commit SHA. This means:
- * - Same broken link, line unchanged between commits: existing comment stays
- *   active (position !== null) and we skip re-posting. The existing comment
- *   is still visible and relevant.
- * - Same broken link, line changed by a new commit: GitHub marks the comment
- *   outdated (position === null), so we treat it as gone and post fresh.
- * - Re-running the workflow on the same commit: existing active comment found,
- *   skipped - no duplicate.
+ * Keyed only on URL - no commit SHA. Once a comment exists for a URL
+ * (active, outdated, or resolved) it is never re-posted.
  */
 function makeMarker(url: string): string {
   return `\n<!-- hyperhawk url="${url}" -->`;
@@ -132,9 +126,8 @@ async function reportPR(
 
   // --- Deduplicate inline review comments ---
 
-  // Build a set of URLs that already have an active (non-outdated) comment
-  // for this exact commit. position===null means the comment is outdated
-  // (the line moved out of the diff after a new push) - those don't count.
+  // Build a set of URLs that already have a comment, regardless of whether
+  // it is active, outdated, or resolved. Once commented, never re-comment.
   const alreadyCommented = new Set<string>();
   try {
     const existing = await octokit.rest.pulls.listReviewComments({
@@ -144,7 +137,6 @@ async function reportPR(
       per_page: 100,
     });
     for (const comment of existing.data) {
-      if (comment.position === null) continue; // outdated, treat as gone
       const marker = parseMarker(comment.body);
       if (marker) {
         alreadyCommented.add(marker.url);
