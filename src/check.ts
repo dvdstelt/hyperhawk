@@ -58,30 +58,19 @@ function levenshtein(a: string, b: string): number {
   return curr[n];
 }
 
-/**
- * Find the best-matching file in the repo by fuzzy-comparing the stem
- * (filename without extension) of the broken URL against every file
- * with the same extension.  Returns the absolute path of the best match
- * if its similarity score is >= FUZZY_THRESHOLD, otherwise undefined.
- *
- * Only one result is returned (the closest match); if it is ambiguous
- * (two files with identical score) we return undefined so we don't
- * mislead the user.
- */
 const FUZZY_THRESHOLD = 0.7;
 
-function fuzzyFindFile(
-  stem: string,
-  ext: string,
-  repoRoot: string
-): string | undefined {
+/**
+ * Return all files whose stem scores >= FUZZY_THRESHOLD against the target
+ * stem, keeping only those that share the top score.
+ */
+function fuzzyFindMatches(stem: string, ext: string, repoRoot: string): string[] {
   const target = stem.toLowerCase();
   const targetExt = ext.toLowerCase();
   const allFiles = getAllRepoFiles(repoRoot);
 
   let bestScore = 0;
-  let bestMatch: string | undefined;
-  let ambiguous = false;
+  const results: string[] = [];
 
   for (const file of allFiles) {
     const fileExt = path.extname(file).toLowerCase();
@@ -96,14 +85,30 @@ function fuzzyFindFile(
 
     if (score > bestScore) {
       bestScore = score;
-      bestMatch = file;
-      ambiguous = false;
+      results.length = 0;
+      results.push(file);
     } else if (score === bestScore) {
-      ambiguous = true;
+      results.push(file);
     }
   }
 
-  return ambiguous ? undefined : bestMatch;
+  return results;
+}
+
+/**
+ * Given multiple candidate paths, pick the one closest to sourceDir by
+ * counting path segments in the relative path.  If two candidates are
+ * equidistant, returns undefined (truly ambiguous).
+ */
+function findClosest(candidates: string[], sourceDir: string): string | undefined {
+  if (candidates.length === 0) return undefined;
+  if (candidates.length === 1) return candidates[0];
+
+  const ranked = candidates
+    .map(c => ({ file: c, depth: path.relative(sourceDir, c).split(path.sep).length }))
+    .sort((a, b) => a.depth - b.depth);
+
+  return ranked[0].depth < ranked[1].depth ? ranked[0].file : undefined;
 }
 
 /**
@@ -154,7 +159,7 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
     if (!isRootRelative) {
       const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
       const rootRelUrl = toRootRelative(resolvedPath, config.repoRoot) + anchor;
-      const suggestion = link.lineContent.replace(url, rootRelUrl);
+      const suggestion = link.lineContent.trimEnd().replace(url, rootRelUrl);
       return { link, ok: true, suggestion, suggestionOnly: true };
     }
     return { link, ok: true };
@@ -167,29 +172,30 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
   const ext = path.extname(urlWithoutAnchor);
 
   let correctedAbs: string | undefined;
-  let matchNote = '';
+  let isFuzzy = false;
 
-  // 1. Exact filename match
+  // 1. Exact filename match - if multiple, pick the one closest to the source file
   const allFiles = getAllRepoFiles(config.repoRoot);
   const exactMatches = allFiles.filter(f => path.basename(f) === filename);
 
-  if (exactMatches.length === 1) {
-    correctedAbs = exactMatches[0];
-  } else if (exactMatches.length === 0 && stem) {
-    // 2. Fuzzy stem match (same extension)
-    const fuzzyMatch = fuzzyFindFile(stem, ext, config.repoRoot);
-    if (fuzzyMatch) {
-      correctedAbs = fuzzyMatch;
-      matchNote = ' (fuzzy match - please verify)';
-    }
+  if (exactMatches.length >= 1) {
+    correctedAbs = findClosest(exactMatches, sourceDir);
   }
-  // If exactMatches.length > 1: ambiguous, no suggestion
+
+  // 2. Fuzzy stem match as fallback - same proximity tie-breaking applies
+  if (!correctedAbs && stem) {
+    const fuzzyMatches = fuzzyFindMatches(stem, ext, config.repoRoot);
+    correctedAbs = findClosest(fuzzyMatches, sourceDir);
+    if (correctedAbs) isFuzzy = true;
+  }
 
   let suggestion: string | undefined;
   if (correctedAbs) {
     const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
     const rootRelUrl = toRootRelative(correctedAbs, config.repoRoot) + anchor;
-    suggestion = link.lineContent.replace(url, rootRelUrl) + (matchNote ? `  <!-- ${matchNote.trim()} -->` : '');
+    const note = isFuzzy ? '  <!-- fuzzy match - please verify -->' : '';
+    // trimEnd() strips trailing \r on CRLF files, which would break GitHub's suggestion block
+    suggestion = link.lineContent.trimEnd().replace(url, rootRelUrl) + note;
   }
 
   return {
