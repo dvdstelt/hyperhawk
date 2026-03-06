@@ -57,6 +57,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+> **Versioning:** `@v1` always runs the latest `v1.x.x` release. For a fully pinned version use a tag like `@v1.2.1`. You can also use `@main` to always run the very latest code — since HyperHawk only reads your links and never modifies your repository, the worst a bad commit can do is report a false positive or miss a broken link.
+
 ### Cross-repo access (private repositories)
 
 Use a GitHub App to check links that point into other repositories in your account or organisation, including private ones. `GITHUB_TOKEN` handles PR comments; the app token handles cross-repo reads. See [Cross-repo access](#cross-repo-access) for setup instructions.
