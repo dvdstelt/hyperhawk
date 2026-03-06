@@ -28,10 +28,27 @@ function parseDiffLines(patch: string | undefined): Set<number> {
     if (line.startsWith('+') || line.startsWith(' ')) {
       visible.add(currentLine++);
     }
-    // '-' lines belong to the old file only; don't advance currentLine
   }
 
   return visible;
+}
+
+/**
+ * Hidden marker appended to every comment body.
+ * Encodes the URL and commit SHA so we can detect duplicates on re-runs.
+ * A comment with the same url+sha that is still active (position !== null)
+ * means we already reported it this run - skip it.
+ * A comment whose position became null (outdated after a new push) is ignored,
+ * so a fresh comment gets posted for the new commit.
+ */
+function makeMarker(url: string, sha: string): string {
+  return `\n<!-- hyperhawk url="${url}" sha="${sha}" -->`;
+}
+
+function parseMarker(body: string | null | undefined): { url: string; sha: string } | null {
+  if (!body) return null;
+  const m = /<!-- hyperhawk url="([^"]+)" sha="([^"]+)" -->/.exec(body);
+  return m ? { url: m[1], sha: m[2] } : null;
 }
 
 function formatBrokenComment(result: CheckResult): string {
@@ -63,13 +80,16 @@ function formatImprovementComment(result: CheckResult): string {
 
 /**
  * Report in a PR context.
- * Inline comments are only posted for lines that are visible in the diff.
- * Everything else falls back to a summary comment.
+ * Inline comments are only posted for lines visible in the diff.
+ * Duplicate comments (same url + sha, still active) are skipped.
+ * Outdated comments (position === null after a new push) are ignored so
+ * a fresh comment is posted for the new commit.
  */
 async function reportPR(
   results: CheckResult[],
   octokit: Octokit,
-  diffLines: DiffLineMap
+  diffLines: DiffLineMap,
+  commitSha: string
 ): Promise<void> {
   const broken = results.filter(r => !r.ok);
   const improvements = results.filter(r => r.ok && r.suggestionOnly && r.suggestion);
@@ -80,39 +100,61 @@ async function reportPR(
   const owner = context.repo.owner;
   const repo = context.repo.repo;
   const pullNumber = pr.number as number;
-  const commitSha = (pr.head as { sha: string }).sha;
+
+  const isCommentable = (filePath: string, line: number): boolean =>
+    diffLines.has(filePath) && (diffLines.get(filePath)?.has(line) ?? false);
+
+  // --- Deduplicate inline review comments ---
+
+  // Build a set of URLs that already have an active (non-outdated) comment
+  // for this exact commit. position===null means the comment is outdated
+  // (the line moved out of the diff after a new push) - those don't count.
+  const alreadyCommented = new Set<string>();
+  try {
+    const existing = await octokit.rest.pulls.listReviewComments({
+      owner,
+      repo,
+      pull_number: pullNumber,
+      per_page: 100,
+    });
+    for (const comment of existing.data) {
+      if (comment.position === null) continue; // outdated, treat as gone
+      const marker = parseMarker(comment.body);
+      if (marker && marker.sha === commitSha) {
+        alreadyCommented.add(marker.url);
+      }
+    }
+  } catch (err) {
+    core.warning(`Could not fetch existing review comments for deduplication: ${String(err)}`);
+  }
 
   type ReviewComment = { path: string; line: number; side: 'RIGHT'; body: string };
   const reviewComments: ReviewComment[] = [];
   const notInDiff: CheckResult[] = [];
 
-  const isCommentable = (filePath: string, line: number): boolean =>
-    diffLines.has(filePath) && (diffLines.get(filePath)?.has(line) ?? false);
-
-  // Broken links: inline if line is visible in diff, otherwise summary
   for (const result of broken) {
-    if (isCommentable(result.link.filePath, result.link.line)) {
-      reviewComments.push({
-        path: result.link.filePath,
-        line: result.link.line,
-        side: 'RIGHT',
-        body: formatBrokenComment(result),
-      });
-    } else {
+    if (!isCommentable(result.link.filePath, result.link.line)) {
       notInDiff.push(result);
+      continue;
     }
+    if (alreadyCommented.has(result.link.url)) continue;
+    reviewComments.push({
+      path: result.link.filePath,
+      line: result.link.line,
+      side: 'RIGHT',
+      body: formatBrokenComment(result) + makeMarker(result.link.url, commitSha),
+    });
   }
 
-  // Improvement suggestions: inline only if line is visible in diff
   for (const result of improvements) {
-    if (isCommentable(result.link.filePath, result.link.line)) {
-      reviewComments.push({
-        path: result.link.filePath,
-        line: result.link.line,
-        side: 'RIGHT',
-        body: formatImprovementComment(result),
-      });
-    }
+    if (!isCommentable(result.link.filePath, result.link.line)) continue;
+    if (alreadyCommented.has(result.link.url)) continue;
+    reviewComments.push({
+      path: result.link.filePath,
+      line: result.link.line,
+      side: 'RIGHT',
+      body: formatImprovementComment(result) + makeMarker(result.link.url, commitSha),
+    });
   }
 
   if (reviewComments.length > 0) {
@@ -128,14 +170,13 @@ async function reportPR(
       core.info(`Posted review with ${reviewComments.length} inline comment(s)`);
     } catch (err) {
       core.warning(`Failed to post inline review comments: ${String(err)}`);
-      // Fall back: demote all inline candidates to annotations
       notInDiff.push(...broken.filter(r => isCommentable(r.link.filePath, r.link.line)));
     }
   }
 
-  // For broken links outside the visible diff, emit check annotations.
-  // GitHub automatically expands the Files Changed view to show annotated
-  // lines even when they are not part of the diff hunks.
+  // Broken links outside the visible diff: emit check annotations.
+  // GitHub expands the Files Changed view to show annotated lines even
+  // when they are not part of the diff hunks.
   for (const result of notInDiff) {
     core.warning(
       `Broken ${result.link.type} link: ${result.link.url} — ${result.error ?? 'broken'}`,
@@ -232,6 +273,7 @@ export async function report(results: CheckResult[], octokit: Octokit): Promise<
     const owner = context.repo.owner;
     const repo = context.repo.repo;
     const pullNumber = pr.number as number;
+    const commitSha = (pr.head as { sha: string }).sha;
 
     let diffLines: DiffLineMap = new Map();
     try {
@@ -250,7 +292,7 @@ export async function report(results: CheckResult[], octokit: Octokit): Promise<
       core.warning(`Failed to fetch PR file list: ${String(err)}`);
     }
 
-    await reportPR(results, octokit, diffLines);
+    await reportPR(results, octokit, diffLines, commitSha);
   } else {
     reportSummary(results);
   }
