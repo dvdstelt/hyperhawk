@@ -4,6 +4,8 @@ param(
     [switch]$patch
 )
 
+$ErrorActionPreference = "Stop"
+
 if (-not $major -and -not $minor -and -not $patch) {
     Write-Error "Usage: .\release.ps1 -major | -minor | -patch"
     exit 1
@@ -37,10 +39,14 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Commit, tag, push
 $branch = git rev-parse --abbrev-ref HEAD
-git add package.json dist/
+git add package.json package-lock.json dist/
 git commit -m "chore: release $tag"
+if ($LASTEXITCODE -ne 0) { Write-Error "git commit failed"; exit $LASTEXITCODE }
 git tag $tag
+if ($LASTEXITCODE -ne 0) { Write-Error "git tag failed"; exit $LASTEXITCODE }
 git push origin $branch
+if ($LASTEXITCODE -ne 0) { Write-Error "git push branch failed"; exit $LASTEXITCODE }
 git push origin $tag
+if ($LASTEXITCODE -ne 0) { Write-Error "git push tag failed"; exit $LASTEXITCODE }
 
 Write-Host "Done - $tag pushed to origin"
