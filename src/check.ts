@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as core from '@actions/core';
 import { getOctokit } from '@actions/github';
 import { LinkInfo, CheckResult, Config } from './types';
 
@@ -207,17 +208,53 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
 }
 
 /**
+ * Returns true if a GitHub repo appears to be private (or otherwise
+ * inaccessible). Makes a single unauthenticated request to the public API:
+ * - public repo  → 200, clearly accessible, not private
+ * - private repo → 404 without auth (same as non-existent)
+ * When the unauthenticated request also returns 404 we can't be certain,
+ * but we treat it as "may be private" and skip silently to avoid false
+ * positives on repos the token simply can't see.
+ */
+async function looksPrivate(owner: string, repo: string): Promise<boolean> {
+  core.debug(`[same-org] Authenticated request returned 404 for ${owner}/${repo} - checking unauthenticated to distinguish private vs non-existent`);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    });
+    clearTimeout(timer);
+    core.debug(`[same-org] Unauthenticated check for ${owner}/${repo} returned HTTP ${res.status}`);
+    // 200 = public repo, our authenticated check should have succeeded too (unusual)
+    // Anything other than 200 (404, 403, ...) = treat as private/inaccessible
+    return res.status !== 200;
+  } catch (err) {
+    // Network error - can't verify, assume inaccessible
+    core.debug(`[same-org] Unauthenticated check for ${owner}/${repo} failed with network error: ${String(err)}`);
+    return true;
+  }
+}
+
+/**
  * Check a same-org GitHub link via the GitHub API.
  */
 async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResult> {
   const cached = resultCache.get(link.url);
-  if (cached) return { link, ...cached };
+  if (cached) {
+    core.debug(`[same-org] Cache hit for ${link.url}: ok=${cached.ok}`);
+    return { link, ...cached };
+  }
+
+  core.debug(`[same-org] Checking ${link.url}`);
 
   try {
     const parsed = new URL(link.url);
     // pathname: /<owner>/<repo>[/blob/<ref>/<...path>]
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts.length < 2) {
+      core.debug(`[same-org] Could not parse pathname: ${parsed.pathname}`);
       const r = { ok: false, error: 'Could not parse GitHub URL' };
       resultCache.set(link.url, r);
       return { link, ...r };
@@ -226,16 +263,32 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
     const repoOwner = parts[0];
     const repoName = parts[1];
 
+    core.debug(`[same-org] Verifying repo ${repoOwner}/${repoName} via authenticated API`);
+
     // Verify repo exists
     try {
-      await octokit.rest.repos.get({ owner: repoOwner, repo: repoName });
+      const repoData = await octokit.rest.repos.get({ owner: repoOwner, repo: repoName });
+      core.debug(`[same-org] Repo ${repoOwner}/${repoName} found - private=${repoData.data.private}`);
     } catch (err: unknown) {
       const status = getStatusCode(err);
-      const r = {
-        ok: false,
-        statusCode: status,
-        error: status === 404 ? `Repository not found (or not accessible with the provided token): ${repoOwner}/${repoName}` : `API error: ${String(err)}`,
-      };
+      core.debug(`[same-org] Repo ${repoOwner}/${repoName} returned HTTP ${status ?? 'unknown'}: ${String(err)}`);
+      if (status === 404) {
+        // 404 can mean the repo is private and the token can't see it, or that
+        // it truly doesn't exist. Try an unauthenticated request to tell them apart:
+        // public repos return 200 without auth; private repos return 404 either way.
+        const isPrivate = await looksPrivate(repoOwner, repoName);
+        if (isPrivate) {
+          core.debug(`[same-org] ${repoOwner}/${repoName} is likely private or inaccessible - skipping silently`);
+          const r = { ok: true };
+          resultCache.set(link.url, r);
+          return { link, ...r };
+        }
+        core.debug(`[same-org] ${repoOwner}/${repoName} confirmed non-existent (public check also 404)`);
+        const r = { ok: false, statusCode: 404, error: `Repository not found: ${repoOwner}/${repoName}` };
+        resultCache.set(link.url, r);
+        return { link, ...r };
+      }
+      const r = { ok: false, statusCode: status, error: `API error: ${String(err)}` };
       resultCache.set(link.url, r);
       return { link, ...r };
     }
@@ -246,6 +299,8 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
       const ref = parts[3];
       const filePath = parts.slice(4).join('/');
 
+      core.debug(`[same-org] Verifying file ${filePath} at ref ${ref} in ${repoOwner}/${repoName}`);
+
       try {
         await octokit.rest.repos.getContent({
           owner: repoOwner,
@@ -253,8 +308,10 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
           path: filePath,
           ref,
         });
+        core.debug(`[same-org] File ${filePath} found in ${repoOwner}/${repoName}`);
       } catch (err: unknown) {
         const status = getStatusCode(err);
+        core.debug(`[same-org] File ${filePath} in ${repoOwner}/${repoName} returned HTTP ${status ?? 'unknown'}: ${String(err)}`);
         const r = {
           ok: false,
           statusCode: status,

@@ -35,20 +35,23 @@ function parseDiffLines(patch: string | undefined): Set<number> {
 
 /**
  * Hidden marker appended to every comment body.
- * Encodes the URL and commit SHA so we can detect duplicates on re-runs.
- * A comment with the same url+sha that is still active (position !== null)
- * means we already reported it this run - skip it.
- * A comment whose position became null (outdated after a new push) is ignored,
- * so a fresh comment gets posted for the new commit.
+ * Keyed only on URL - no commit SHA. This means:
+ * - Same broken link, line unchanged between commits: existing comment stays
+ *   active (position !== null) and we skip re-posting. The existing comment
+ *   is still visible and relevant.
+ * - Same broken link, line changed by a new commit: GitHub marks the comment
+ *   outdated (position === null), so we treat it as gone and post fresh.
+ * - Re-running the workflow on the same commit: existing active comment found,
+ *   skipped - no duplicate.
  */
-function makeMarker(url: string, sha: string): string {
-  return `\n<!-- hyperhawk url="${url}" sha="${sha}" -->`;
+function makeMarker(url: string): string {
+  return `\n<!-- hyperhawk url="${url}" -->`;
 }
 
-function parseMarker(body: string | null | undefined): { url: string; sha: string } | null {
+function parseMarker(body: string | null | undefined): { url: string } | null {
   if (!body) return null;
-  const m = /<!-- hyperhawk url="([^"]+)" sha="([^"]+)" -->/.exec(body);
-  return m ? { url: m[1], sha: m[2] } : null;
+  const m = /<!-- hyperhawk url="([^"]+)" -->/.exec(body);
+  return m ? { url: m[1] } : null;
 }
 
 function formatBrokenComment(result: CheckResult): string {
@@ -120,7 +123,7 @@ async function reportPR(
     for (const comment of existing.data) {
       if (comment.position === null) continue; // outdated, treat as gone
       const marker = parseMarker(comment.body);
-      if (marker && marker.sha === commitSha) {
+      if (marker) {
         alreadyCommented.add(marker.url);
       }
     }
@@ -142,7 +145,7 @@ async function reportPR(
       path: result.link.filePath,
       line: result.link.line,
       side: 'RIGHT',
-      body: formatBrokenComment(result) + makeMarker(result.link.url, commitSha),
+      body: formatBrokenComment(result) + makeMarker(result.link.url),
     });
   }
 
@@ -153,7 +156,7 @@ async function reportPR(
       path: result.link.filePath,
       line: result.link.line,
       side: 'RIGHT',
-      body: formatImprovementComment(result) + makeMarker(result.link.url, commitSha),
+      body: formatImprovementComment(result) + makeMarker(result.link.url),
     });
   }
 
