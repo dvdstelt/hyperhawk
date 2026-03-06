@@ -368,6 +368,16 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
       result = await tryFetch('GET');
     }
 
+    // 403 (Forbidden) and 429 (Too Many Requests) indicate the server is
+    // actively blocking automated access (bot protection, rate limiting).
+    // The URL itself is valid - treat as ok to avoid false positives.
+    if (result.status === 403 || result.status === 429) {
+      core.debug(`[external] ${link.url} returned HTTP ${result.status} - treating as bot-blocked, skipping`);
+      const r = { ok: true, statusCode: result.status };
+      resultCache.set(link.url, r);
+      return { link, ...r };
+    }
+
     const r = { ok: result.ok, statusCode: result.status };
     if (!result.ok) {
       resultCache.set(link.url, { ...r, error: `HTTP ${result.status}` });
