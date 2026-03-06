@@ -412,19 +412,23 @@ async function runWithConcurrency<T>(
 
 /**
  * Check all links with deduplication and concurrency control.
+ * crossRepoOctokit is used for same-org checks; falls back to octokit when not provided.
  */
 export async function checkLinks(
   links: LinkInfo[],
   config: Config,
-  octokit: Octokit
+  octokit: Octokit,
+  crossRepoOctokit?: Octokit
 ): Promise<CheckResult[]> {
+  const sameOrgOctokit = crossRepoOctokit ?? octokit;
+
   const tasks = links.map(link => () => {
     switch (link.type) {
       case 'internal':
         return checkInternal(link, config);
       case 'same-org':
         if (!config.checkSameOrg) return Promise.resolve({ link, ok: true });
-        return checkSameOrg(link, octokit);
+        return checkSameOrg(link, sameOrgOctokit);
       case 'external':
         if (!config.checkExternal) return Promise.resolve({ link, ok: true });
         return checkExternal(link, config);

@@ -65,6 +65,8 @@ async function run(): Promise<void> {
     };
 
     const octokit = getOctokit(token);
+    const crossRepoTokenInput = core.getInput('cross-repo-token');
+    const crossRepoOctokit = crossRepoTokenInput ? getOctokit(crossRepoTokenInput) : undefined;
 
     // Determine files to scan
     let filesToScan: string[];
@@ -113,7 +115,7 @@ async function run(): Promise<void> {
     core.info(`Checking ${filteredLinks.length} link(s)...`);
 
     // Check all links
-    const results = await checkLinks(filteredLinks, config, octokit);
+    const results = await checkLinks(filteredLinks, config, octokit, crossRepoOctokit);
 
     // Report results
     const brokenCount = await report(results, octokit);

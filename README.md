@@ -26,7 +26,9 @@ HyperHawk also flags working links that use relative paths (`../../docs/guide.md
 
 ## Quickstart
 
-Add a workflow file to your repository:
+### Single repository
+
+Links within the same repository and external URLs only. No additional setup required.
 
 **.github/workflows/link-check.yml**
 
@@ -45,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write  # required to post review comments
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v4
@@ -55,13 +57,53 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+### Cross-repo access (private repositories)
+
+Use a GitHub App to check links that point into other repositories in your account or organisation, including private ones. `GITHUB_TOKEN` handles PR comments; the app token handles cross-repo reads. See [Cross-repo access](#cross-repo-access) for setup instructions.
+
+**.github/workflows/link-check.yml**
+
+```yaml
+name: Link Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 1'   # every Monday at midnight
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - uses: dvdstelt/hyperhawk@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cross-repo-token: ${{ steps.app-token.outputs.token }}
+```
+
 ---
 
 ## Inputs
 
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
-| `token` | yes | `${{ github.token }}` | GitHub token used for API calls and posting PR comments. The built-in `GITHUB_TOKEN` is sufficient for most cases. |
+| `token` | yes | `${{ github.token }}` | GitHub token used for posting PR comments and reading the PR diff. `GITHUB_TOKEN` is sufficient. |
+| `cross-repo-token` | no | _(empty)_ | Separate token used only for same-org GitHub link checks. Provide a GitHub App token with `Contents: Read` to check links into private repositories. When omitted, `token` is used for all checks. |
 | `files` | no | `**/*.md,**/*.mdx` | Comma-separated glob patterns for files to scan. |
 | `check-external` | no | `true` | Whether to check external HTTP/HTTPS links. Set to `false` to skip (useful if your runner has no outbound internet). |
 | `check-same-org` | no | `true` | Whether to verify same-organisation GitHub links via the API. |
@@ -199,16 +241,17 @@ Limitation: the token is tied to one person's account. If they leave the organis
 
 Create a classic PAT with the `repo` scope. Same setup as above - store as a secret, pass via `token`. Simpler to create but broader in scope than necessary.
 
-### Option 3: GitHub App (recommended for teams)
+### Option 3: GitHub App (recommended)
 
-A GitHub App is not tied to any individual account, making it the right long-term solution for organisations.
+A GitHub App is not tied to any individual account and works on both personal accounts and organisations.
 
 1. Go to **Settings > Developer settings > GitHub Apps** and create a new app
-2. Under permissions, grant `Contents: Read` (repository permission)
-3. Install the app on your organisation and select which repositories it can access
-4. Store the App ID and private key as secrets
+2. Under permissions, grant `Contents: Read` (repository permission). No `Pull requests` permission needed on the app.
+3. Disable the webhook (uncheck **Active** under Webhook)
+4. Install the app on your account or organisation and select **All repositories** (or specific ones)
+5. Store the App ID and private key as secrets
 
-Then generate a short-lived installation token at the start of each workflow run:
+Pass the app token via `cross-repo-token` so that `GITHUB_TOKEN` (which holds `pull-requests: write`) continues to handle PR comments:
 
 ```yaml
 - uses: actions/create-github-app-token@v1
@@ -216,13 +259,17 @@ Then generate a short-lived installation token at the start of each workflow run
   with:
     app-id: ${{ secrets.APP_ID }}
     private-key: ${{ secrets.APP_PRIVATE_KEY }}
+    owner: ${{ github.repository_owner }}
 
 - uses: dvdstelt/hyperhawk@v1
   with:
-    token: ${{ steps.app-token.outputs.token }}
+    token: ${{ secrets.GITHUB_TOKEN }}
+    cross-repo-token: ${{ steps.app-token.outputs.token }}
 ```
 
-The installation token is scoped to exactly the repositories you chose during app installation, expires after one hour, and can be revoked independently of any person's account.
+The `owner` input on `create-github-app-token` is required to generate a token scoped to all repos the app can access, rather than just the current repository.
+
+The installation token expires after one hour and can be revoked independently of any person's account.
 
 ---
 

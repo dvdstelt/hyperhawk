@@ -35,6 +35,14 @@ inputs:
     description: Fail the workflow if broken links are found
     required: false
     default: 'false'
+  cross-repo-token:
+    description: >
+      Optional separate token used only for same-org GitHub link checks.
+      Use a GitHub App token with Contents: Read permission to check links
+      into private repositories. When omitted, the main token is used for
+      all checks.
+    required: false
+    default: ''
 
 branding:
   icon: link
