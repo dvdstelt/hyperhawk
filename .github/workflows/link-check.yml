@@ -1,0 +1,25 @@
+name: Link Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          strict: ${{ secrets.LINK_CHECK_STRICT }}
+          check-external: true
+          check-same-org: true

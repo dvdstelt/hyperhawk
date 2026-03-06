@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
+
+jobs:
+  build:
+    name: Typecheck & Build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # needed to push the rebuilt dist/ back to the branch
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a PAT if you have one, otherwise GITHUB_TOKEN.
+          # GITHUB_TOKEN pushes won't re-trigger CI (GitHub skips it by default).
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build dist
+        run: npm run build
+
+      # On pull requests: verify dist/ is committed and up to date.
+      # This catches PRs where the author forgot to run `npm run build`.
+      - name: Verify dist is up to date
+        if: github.event_name == 'pull_request'
+        run: |
+          if ! git diff --quiet dist/; then
+            echo "::error::dist/ is out of date. Run 'npm run build' and commit the result."
+            git diff --stat dist/
+            exit 1
+          fi
+
+      # On push: if the build changed dist/, commit it back automatically.
+      # [skip ci] in the message prevents this commit from re-triggering the workflow.
+      - name: Commit rebuilt dist
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/
+          if git diff --staged --quiet; then
+            echo "dist/ is already up to date, nothing to commit"
+          else
+            git commit -m "chore: rebuild dist [skip ci]"
+            git push
+          fi

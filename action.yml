@@ -1,0 +1,41 @@
+name: HyperHawk Link Checker
+description: Scans markdown files for broken links and posts PR review comments
+author: HyperHawk
+
+inputs:
+  token:
+    description: GitHub token for API calls and posting PR comments
+    required: true
+    default: ${{ github.token }}
+  files:
+    description: Glob patterns for files to scan (comma-separated), defaults to all .md/.mdx
+    required: false
+    default: '**/*.md,**/*.mdx'
+  check-external:
+    description: Whether to check external HTTP links
+    required: false
+    default: 'true'
+  check-same-org:
+    description: Whether to check same-org GitHub links via API
+    required: false
+    default: 'true'
+  ignore-patterns:
+    description: Comma-separated list of URL patterns to ignore (regex)
+    required: false
+    default: ''
+  timeout:
+    description: Timeout in milliseconds for external link checks
+    required: false
+    default: '10000'
+  concurrency:
+    description: Number of concurrent link checks
+    required: false
+    default: '5'
+  strict:
+    description: Fail the workflow if broken links are found
+    required: false
+    default: 'false'
+
+runs:
+  using: node20
+  main: dist/index.js
