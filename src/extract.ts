@@ -3,6 +3,32 @@ import * as path from 'path';
 import { LinkInfo, LinkType, Config } from './types';
 
 /**
+ * Returns true for URLs that should not be checked at all: mailto links
+ * and absolute URLs whose scheme+authority is not a valid URL.
+ * Relative/internal paths are never skipped.
+ */
+function shouldSkip(url: string): boolean {
+  if (url.startsWith('mailto:')) return true;
+
+  // Only validate URLs that have a scheme
+  if (url.includes('://')) {
+    try {
+      const parsed = new URL(url);
+      // A valid hostname needs at least one label with an alphanumeric
+      // character (rejects "...", placeholder URLs, etc.) and at least
+      // one dot (rejects single-word hostnames) unless it's localhost.
+      if (parsed.hostname !== 'localhost' && !/[a-z0-9]\.[a-z0-9]/i.test(parsed.hostname)) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Classify a URL as internal, same-org, or external.
  */
 function classifyUrl(url: string, owner: string): LinkType {
@@ -13,7 +39,7 @@ function classifyUrl(url: string, owner: string): LinkType {
   if (url.startsWith('#')) return 'internal';
 
   // No scheme: relative or absolute path
-  if (!url.includes('://') && !url.startsWith('mailto:')) {
+  if (!url.includes('://')) {
     return 'internal';
   }
 
@@ -65,7 +91,7 @@ export function extractLinks(filePath: string, config: Config): LinkInfo[] {
       const text = m[1];
       // URL may include title: extract just the URL part
       const urlPart = m[2].trim().split(/\s+/)[0];
-      if (!urlPart) continue;
+      if (!urlPart || shouldSkip(urlPart)) continue;
       links.push({
         url: urlPart,
         text,
@@ -82,7 +108,7 @@ export function extractLinks(filePath: string, config: Config): LinkInfo[] {
       const text = m[1];
       const ref = (m[2] || m[1]).toLowerCase();
       const url = refDefs.get(ref);
-      if (!url) continue;
+      if (!url || shouldSkip(url)) continue;
       links.push({
         url,
         text,
@@ -97,7 +123,7 @@ export function extractLinks(filePath: string, config: Config): LinkInfo[] {
     htmlHrefRegex.lastIndex = 0;
     while ((m = htmlHrefRegex.exec(lineContent)) !== null) {
       const url = m[1];
-      if (!url) continue;
+      if (!url || shouldSkip(url)) continue;
       links.push({
         url,
         text: url,
@@ -112,6 +138,7 @@ export function extractLinks(filePath: string, config: Config): LinkInfo[] {
     autolinkRegex.lastIndex = 0;
     while ((m = autolinkRegex.exec(lineContent)) !== null) {
       const url = m[1];
+      if (shouldSkip(url)) continue;
       links.push({
         url,
         text: url,
