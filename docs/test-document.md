@@ -28,8 +28,26 @@ The [advanced examples](../examples/advanced-setup.md) cover more scenarios.
 - [Marketplace listing](https://marketplace.visualstudio.com/items?itemName=vs-publisher-141975.SwitchStartupProject)
 - [A broken external link](https://this-domain-definitely-does-not-exist-xyz123.com/page)
 
-## Related
+## More Broken Links
 
-See the [agents guide](../AGENTS.md) for AI coding conventions.
+Here is a link to the [release script](../release.ps) which has a typo in the extension.
+
+Check the [TypeScript config](../tsconfig.jso) for compiler settings.
+
+The [action definition](../action.ym) describes all inputs and outputs.
+
+Read the [package file](../../HyperHawk/package.json) using a needlessly deep relative path.
+
+## Anchors and Fragments
+
+See the [README troubleshooting section](../READM.md#troubleshooting) with a typo and anchor.
+
+## Root-relative Candidates
+
+Look at the [agents guide](../AGENTS.md) for coding conventions.
+
+The [action config](../action.yml) has all the inputs documented.
+
+## Related
 
 See the [contribution guide](../CONTRIBUTING.md) for how to contribute.

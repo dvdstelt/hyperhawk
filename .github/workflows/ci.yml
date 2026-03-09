@@ -13,6 +13,7 @@ jobs:
 
     permissions:
       contents: write  # needed to push the rebuilt dist/ back to the branch
+      pull-requests: write  # needed for integration test
 
     steps:
       - uses: actions/checkout@v4
@@ -60,3 +61,13 @@ jobs:
             git commit -m "chore: rebuild dist [skip ci]"
             git push
           fi
+
+      # Run HyperHawk against docs/test-document.md to verify the action works.
+      # In push context it scans all files and writes results to step summary.
+      - name: Integration test
+        uses: ./
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: 'docs/test-document.md'
+          check-external: true
+          check-same-org: false
