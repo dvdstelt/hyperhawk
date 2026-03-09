@@ -6,7 +6,7 @@ docs/test-document.md:23 | ../docs/setup-guide.md | broken | File not found: <ro
 docs/test-document.md:25 | ../../faq/common-issues.md | broken | File not found: <parent>/faq/common-issues.md
 docs/test-document.md:27 | ../CONTRIBUTING.md | broken | File not found: <root>/CONTRIBUTING.md
 docs/test-document.md:31 | ./configuration.md | broken | File not found: <root>/docs/configuration.md
-docs/test-document.md:33 | ./placeholder.md | blaat
+docs/test-document.md:33 | ./placeholder.md | ok
 docs/test-document.md:37 | ../AGENTS.md | suggestion
 docs/test-document.md:39 | ../action.yml | suggestion
 docs/test-document.md:7 | ../READM.md | broken -> /README.md (fuzzy)
