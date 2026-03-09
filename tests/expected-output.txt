@@ -1,0 +1,12 @@
+docs/test-document.md:11 | ../release.ps | broken | File not found: <root>/release.ps
+docs/test-document.md:13 | ../tsconfig.jso | broken | File not found: <root>/tsconfig.jso
+docs/test-document.md:15 | ../action.ym | broken | File not found: <root>/action.ym
+docs/test-document.md:19 | ../READM.md#troubleshooting | broken -> /README.md#troubleshooting (fuzzy)
+docs/test-document.md:23 | ../docs/setup-guide.md | broken | File not found: <root>/docs/setup-guide.md
+docs/test-document.md:25 | ../../faq/common-issues.md | broken | File not found: <parent>/faq/common-issues.md
+docs/test-document.md:27 | ../CONTRIBUTING.md | broken | File not found: <root>/CONTRIBUTING.md
+docs/test-document.md:31 | ./configuration.md | broken | File not found: <root>/docs/configuration.md
+docs/test-document.md:35 | ../AGENTS.md | suggestion
+docs/test-document.md:37 | ../action.yml | suggestion
+docs/test-document.md:7 | ../READM.md | broken -> /README.md (fuzzy)
+docs/test-document.md:9 | ../LICENS.md | broken | File not found: <root>/LICENS.md
