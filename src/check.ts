@@ -247,9 +247,53 @@ async function looksPrivate(owner: string, repo: string): Promise<boolean> {
 }
 
 /**
+ * Suggest rewriting a full GitHub URL that points to the current repo
+ * as a local path. Uses the same convention as checkInternal: same-folder
+ * files use a bare filename, everything else uses a root-relative path.
+ */
+function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): CheckResult {
+  // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts] or [owner, repo, ...]
+  const hasFilePath = parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree');
+
+  if (!hasFilePath) {
+    // Just a repo URL (e.g. https://github.com/owner/repo or .../issues/1)
+    // No local path equivalent; mark ok with no suggestion
+    return { link, ok: true, suggestionOnly: true };
+  }
+
+  const filePath = parts.slice(4).join('/');
+  const resolvedPath = path.join(config.repoRoot, filePath);
+  const exists = fs.existsSync(resolvedPath);
+
+  if (!exists) {
+    return {
+      link,
+      ok: false,
+      error: `File not found: ${resolvedPath}`,
+    };
+  }
+
+  const sourceDir = path.dirname(path.join(config.repoRoot, link.filePath));
+  const isSameFolder = path.dirname(resolvedPath) === sourceDir;
+
+  const localUrl = isSameFolder
+    ? path.basename(filePath)
+    : '/' + filePath;
+
+  const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
+  return {
+    link,
+    ok: true,
+    suggestion,
+    correctedUrl: localUrl,
+    suggestionOnly: true,
+  };
+}
+
+/**
  * Check a same-org GitHub link via the GitHub API.
  */
-async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResult> {
+async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): Promise<CheckResult> {
   const cached = resultCache.get(link.url);
   if (cached) {
     core.debug(`[same-org] Cache hit for ${link.url}: ok=${cached.ok}`);
@@ -261,7 +305,18 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
   try {
     const parsed = new URL(link.url);
     // pathname: /<owner>/<repo>[/blob/<ref>/<...path>]
+    //       or: /orgs/<owner>/projects/<id>[/views/<id>]
     const parts = parsed.pathname.split('/').filter(Boolean);
+
+    // Org-level URLs (e.g. /orgs/owner/projects/123) - we trust these if
+    // the org matches; there is no simple API to verify project access.
+    if (parts[0] === 'orgs' && parts.length >= 2) {
+      core.debug(`[same-org] Org-level URL, treating as valid: ${link.url}`);
+      const r = { ok: true };
+      resultCache.set(link.url, r);
+      return { link, ...r };
+    }
+
     if (parts.length < 2) {
       core.debug(`[same-org] Could not parse pathname: ${parsed.pathname}`);
       const r = { ok: false, error: 'Could not parse GitHub URL' };
@@ -271,6 +326,13 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
 
     const repoOwner = parts[0];
     const repoName = parts[1];
+
+    // Self-repo link: suggest rewriting as a local path instead of a full URL
+    if (repoOwner.toLowerCase() === config.owner.toLowerCase()
+        && repoName.toLowerCase() === config.repo.toLowerCase()) {
+      core.debug(`[same-org] URL points to current repo, suggesting local path: ${link.url}`);
+      return suggestLocalPath(link, parts, config);
+    }
 
     core.debug(`[same-org] Verifying repo ${repoOwner}/${repoName} via authenticated API`);
 
@@ -302,9 +364,9 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
       return { link, ...r };
     }
 
-    // If URL has a file path (/blob/<ref>/<path>), check it
-    // parts: [owner, repo, 'blob', ref, ...pathParts]
-    if (parts.length > 4 && parts[2] === 'blob') {
+    // If URL has a file/directory path (/blob/<ref>/<path> or /tree/<ref>/<path>), check it
+    // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts]
+    if (parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree')) {
       const ref = parts[3];
       const filePath = parts.slice(4).join('/');
 
@@ -457,7 +519,7 @@ export async function checkLinks(
         return checkInternal(link, config);
       case 'same-org':
         if (!config.checkSameOrg) return Promise.resolve({ link, ok: true });
-        return checkSameOrg(link, sameOrgOctokit);
+        return checkSameOrg(link, sameOrgOctokit, config);
       case 'external':
         if (!config.checkExternal) return Promise.resolve({ link, ok: true });
         return checkExternal(link, config);

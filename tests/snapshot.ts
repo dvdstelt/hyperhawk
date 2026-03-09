@@ -1,11 +1,11 @@
 /**
- * Snapshot test for HyperHawk's internal link checking.
+ * Snapshot test for HyperHawk's link checking.
  *
  * Runs extract + check against docs/test-document.md and writes
  * a stable sorted output. CI compares this against expected-output.txt.
  *
- * Only tests internal links (no external HTTP, no same-org API calls)
- * so the output is fully deterministic.
+ * Tests internal links and same-org self-repo links (which resolve
+ * locally without API calls). External HTTP checks are disabled.
  */
 
 import * as path from 'path';
@@ -20,11 +20,11 @@ async function main(): Promise<void> {
   const config: Config = {
     token: '',
     repoRoot,
-    owner: '',
-    repo: '',
+    owner: 'dvdstelt',
+    repo: 'hyperhawk',
     strict: false,
     checkExternal: false,
-    checkSameOrg: false,
+    checkSameOrg: true,
     ignorePatterns: [],
     timeout: 5000,
     filePatterns: ['docs/test-document.md'],
@@ -32,10 +32,11 @@ async function main(): Promise<void> {
   };
 
   const links = extractLinks(testFile, config);
-  const internal = links.filter(l => l.type === 'internal');
+  const testable = links.filter(l => l.type === 'internal' || l.type === 'same-org');
 
-  // checkLinks needs an octokit but we skip external/same-org, so pass null
-  const results = await checkLinks(internal, config, null as any);
+  // checkLinks needs an octokit but self-repo same-org links resolve locally
+  // and external checks are disabled, so no API calls are made.
+  const results = await checkLinks(testable, config, null as any);
 
   const lines = results
     .map(r => {

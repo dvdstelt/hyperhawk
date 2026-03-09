@@ -37,3 +37,21 @@ See the [placeholder](./placeholder.md) for an existing same-folder link.
 Look at the [agents guide](../AGENTS.md) for coding conventions.
 
 The [action config](../action.yml) has all the inputs documented.
+
+## Skipped Links (should not be checked)
+
+Contact us at [email](mailto:user@domain.net) for support.
+
+See the [docs](https://...) for more information.
+
+## Self-repo URLs (should suggest local path)
+
+The [README](https://github.com/dvdstelt/hyperhawk/blob/main/README.md) can be a local link.
+
+See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/docs/test-document.md) which is in the same folder.
+
+The [missing file](https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md) should be reported as broken.
+
+## External Links (verified when external checking is enabled)
+
+Thanks to [@dvdstelt](https://github.com/dvdstelt) for the contribution.
