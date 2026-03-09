@@ -30,6 +30,8 @@ See the [contribution guide](../CONTRIBUTING.md) for how to contribute.
 
 You can also refer to the [configuration reference](./configuration.md) for all available options.
 
+See the [placeholder](./placeholder.md) for an existing same-folder link.
+
 ## Root-relative Candidates (valid but relative)
 
 Look at the [agents guide](../AGENTS.md) for coding conventions.
