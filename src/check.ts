@@ -157,11 +157,17 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
 
   if (exists) {
     // Link is valid. If it uses a relative path (not root-relative), suggest conversion.
+    // However, skip the suggestion for same-folder links (e.g. "readme.md" or "./readme.md")
+    // because they are simple and unlikely to break.
     if (!isRootRelative) {
-      const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
-      const rootRelUrl = toRootRelative(resolvedPath, config.repoRoot) + anchor;
-      const suggestion = link.lineContent.trimEnd().replace(url, rootRelUrl);
-      return { link, ok: true, suggestion, suggestionOnly: true };
+      const normalized = urlWithoutAnchor.replace(/^\.\//, '');
+      const isSameFolder = !normalized.includes('/') && !normalized.includes('\\');
+      if (!isSameFolder) {
+        const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
+        const rootRelUrl = toRootRelative(resolvedPath, config.repoRoot) + anchor;
+        const suggestion = link.lineContent.trimEnd().replace(url, rootRelUrl);
+        return { link, ok: true, suggestion, suggestionOnly: true };
+      }
     }
     return { link, ok: true };
   }

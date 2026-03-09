@@ -1,6 +1,7 @@
 import * as core from '@actions/core';
 import { context, getOctokit } from '@actions/github';
 import * as glob from '@actions/glob';
+import minimatch from 'minimatch';
 import * as path from 'path';
 import { Config } from './types';
 import { extractLinks, filterIgnored } from './extract';
@@ -78,7 +79,13 @@ async function run(): Promise<void> {
     if (context.payload.pull_request) {
       core.info('PR context detected - scanning only changed .md/.mdx files');
       try {
-        const changedFiles = await getChangedMdFiles(octokit);
+        let changedFiles = await getChangedMdFiles(octokit);
+        // Apply include/exclude file patterns so exclusions like !docs/test.md work on PRs too
+        changedFiles = changedFiles.filter(f => {
+          const included = filePatterns.filter(p => !p.startsWith('!')).some(p => minimatch(f, p));
+          const excluded = filePatterns.filter(p => p.startsWith('!')).some(p => minimatch(f, p.slice(1)));
+          return included && !excluded;
+        });
         filesToScan = changedFiles.map(f => path.join(repoRoot, f));
         core.info(`Changed markdown files: ${filesToScan.length}`);
       } catch (err) {

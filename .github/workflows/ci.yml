@@ -60,3 +60,6 @@ jobs:
             git commit -m "chore: rebuild dist [skip ci]"
             git push
           fi
+
+      - name: Snapshot test
+        run: npm run test:snapshot
