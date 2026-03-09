@@ -16,6 +16,7 @@
         "@actions/glob": "^0.4.0"
     },
     "devDependencies": {
+        "@types/minimatch": "^5.1.2",
         "@types/node": "^20.0.0",
         "@vercel/ncc": "^0.38.0",
         "tsx": "^4.21.0",
