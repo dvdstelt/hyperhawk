@@ -17,9 +17,10 @@ function classifyUrl(url: string, owner: string): LinkType {
     return 'internal';
   }
 
-  // Same-org GitHub links
+  // Same-org GitHub links (repo-level and org-level)
   const sameOrgPrefix = `https://github.com/${owner}/`;
-  if (url.startsWith(sameOrgPrefix)) {
+  const sameOrgOrgsPrefix = `https://github.com/orgs/${owner}/`;
+  if (url.startsWith(sameOrgPrefix) || url.startsWith(sameOrgOrgsPrefix)) {
     return 'same-org';
   }
 

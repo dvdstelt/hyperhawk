@@ -261,7 +261,18 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
   try {
     const parsed = new URL(link.url);
     // pathname: /<owner>/<repo>[/blob/<ref>/<...path>]
+    //       or: /orgs/<owner>/projects/<id>[/views/<id>]
     const parts = parsed.pathname.split('/').filter(Boolean);
+
+    // Org-level URLs (e.g. /orgs/owner/projects/123) - we trust these if
+    // the org matches; there is no simple API to verify project access.
+    if (parts[0] === 'orgs' && parts.length >= 2) {
+      core.debug(`[same-org] Org-level URL, treating as valid: ${link.url}`);
+      const r = { ok: true };
+      resultCache.set(link.url, r);
+      return { link, ...r };
+    }
+
     if (parts.length < 2) {
       core.debug(`[same-org] Could not parse pathname: ${parsed.pathname}`);
       const r = { ok: false, error: 'Could not parse GitHub URL' };
@@ -302,9 +313,9 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit): Promise<CheckResu
       return { link, ...r };
     }
 
-    // If URL has a file path (/blob/<ref>/<path>), check it
-    // parts: [owner, repo, 'blob', ref, ...pathParts]
-    if (parts.length > 4 && parts[2] === 'blob') {
+    // If URL has a file/directory path (/blob/<ref>/<path> or /tree/<ref>/<path>), check it
+    // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts]
+    if (parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree')) {
       const ref = parts[3];
       const filePath = parts.slice(4).join('/');
 
