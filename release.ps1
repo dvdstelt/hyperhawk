@@ -11,6 +11,17 @@ if (-not $major -and -not $minor -and -not $patch) {
     exit 1
 }
 
+# Ensure we are on main and up to date
+$branch = git rev-parse --abbrev-ref HEAD
+if ($branch -ne "main") {
+    Write-Host "Switching to main..."
+    git checkout main
+    if ($LASTEXITCODE -ne 0) { Write-Error "git checkout main failed"; exit $LASTEXITCODE }
+}
+Write-Host "Pulling latest changes..."
+git pull --ff-only origin main
+if ($LASTEXITCODE -ne 0) { Write-Error "git pull failed - main may have diverged"; exit $LASTEXITCODE }
+
 # Read current version from package.json
 $pkg = Get-Content "package.json" | ConvertFrom-Json
 $current = $pkg.version
@@ -38,7 +49,6 @@ npm run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Commit, tag, push
-$branch = git rev-parse --abbrev-ref HEAD
 git add package.json package-lock.json dist/
 git commit -m "chore: release $tag"
 if ($LASTEXITCODE -ne 0) { Write-Error "git commit failed"; exit $LASTEXITCODE }
@@ -47,7 +57,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "git tag failed"; exit $LASTEXITCODE }
 $floatingTag = "v$maj"
 git tag -f $floatingTag
 if ($LASTEXITCODE -ne 0) { Write-Error "git floating tag failed"; exit $LASTEXITCODE }
-git push origin $branch
+git push origin main
 if ($LASTEXITCODE -ne 0) { Write-Error "git push branch failed"; exit $LASTEXITCODE }
 git push origin $tag
 if ($LASTEXITCODE -ne 0) { Write-Error "git push tag failed"; exit $LASTEXITCODE }
