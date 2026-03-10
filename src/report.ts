@@ -99,7 +99,7 @@ function formatImprovementComment(result: CheckResult): string {
  * Merge multiple results on the same line into one review comment.
  * Produces a single suggestion block that applies all fixes at once.
  */
-function mergeResultsForLine(group: CheckResult[]): { body: string; markers: string[] } {
+export function mergeResultsForLine(group: CheckResult[]): { body: string; markers: string[] } {
   const bodyParts: string[] = [];
   const markers: string[] = [];
 

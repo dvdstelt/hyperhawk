@@ -26,6 +26,10 @@ For troubleshooting, see the [FAQ](../../faq/common-issues.md).
 
 See the [contribution guide](../CONTRIBUTING.md) for how to contribute.
 
+## Multiple Links on One Line (should produce one merged suggestion)
+
+Read the [README](../READM.md) and the [license](../LICENS.md) before starting.
+
 ## Same-folder Link (should NOT get root-relative suggestion)
 
 You can also refer to the [configuration reference](./configuration.md) for all available options.

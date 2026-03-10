@@ -12,6 +12,7 @@ import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
 import { checkLinks } from '../src/check';
 import { Config, CheckResult } from '../src/types';
+import { mergeResultsForLine } from '../src/report';
 
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
@@ -56,6 +57,34 @@ async function main(): Promise<void> {
     .sort();
 
   process.stdout.write(lines.join('\n') + '\n');
+
+  // --- Merge test: group results by line and output merged suggestions ---
+  const grouped = new Map<string, CheckResult[]>();
+  for (const r of results) {
+    const key = `${r.link.filePath}:${r.link.line}`;
+    let group = grouped.get(key);
+    if (!group) {
+      group = [];
+      grouped.set(key, group);
+    }
+    group.push(r);
+  }
+
+  const mergeLines: string[] = [];
+  for (const [key, group] of [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (group.length < 2) continue;
+    const { body } = mergeResultsForLine(group);
+    // Extract just the suggestion block if present
+    const suggestionMatch = /```suggestion\n(.*)\n```/s.exec(body);
+    const suggestion = suggestionMatch ? suggestionMatch[1] : '(no suggestion)';
+    const urls = group.map(r => r.link.url).join(' + ');
+    const rel = path.relative(repoRoot, group[0].link.filePath).replace(/\\/g, '/');
+    mergeLines.push(`merge:${rel}:${group[0].link.line} | ${urls} | ${suggestion}`);
+  }
+
+  if (mergeLines.length > 0) {
+    process.stdout.write(mergeLines.join('\n') + '\n');
+  }
 }
 
 main().catch(err => {

@@ -11,12 +11,15 @@ docs/test-document.md:19 | ../READM.md#troubleshooting | broken -> /README.md#tr
 docs/test-document.md:23 | ../docs/setup-guide.md | broken | File not found: <root>/docs/setup-guide.md
 docs/test-document.md:25 | ../../faq/common-issues.md | broken | File not found: <parent>/faq/common-issues.md
 docs/test-document.md:27 | ../CONTRIBUTING.md | broken | File not found: <root>/CONTRIBUTING.md
-docs/test-document.md:31 | ./configuration.md | broken | File not found: <root>/docs/configuration.md
-docs/test-document.md:33 | ./placeholder.md | ok
-docs/test-document.md:37 | ../AGENTS.md | suggestion
-docs/test-document.md:39 | ../action.yml | suggestion
-docs/test-document.md:49 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion -> /README.md
-docs/test-document.md:51 | https://github.com/dvdstelt/hyperhawk/blob/main/docs/test-document.md | suggestion -> test-document.md
-docs/test-document.md:53 | https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md | broken | File not found: <root>/does-not-exist.md
+docs/test-document.md:31 | ../LICENS.md | broken | File not found: <root>/LICENS.md
+docs/test-document.md:31 | ../READM.md | broken -> /README.md (fuzzy)
+docs/test-document.md:35 | ./configuration.md | broken | File not found: <root>/docs/configuration.md
+docs/test-document.md:37 | ./placeholder.md | ok
+docs/test-document.md:41 | ../AGENTS.md | suggestion
+docs/test-document.md:43 | ../action.yml | suggestion
+docs/test-document.md:53 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion -> /README.md
+docs/test-document.md:55 | https://github.com/dvdstelt/hyperhawk/blob/main/docs/test-document.md | suggestion -> test-document.md
+docs/test-document.md:57 | https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md | broken | File not found: <root>/does-not-exist.md
 docs/test-document.md:7 | ../READM.md | broken -> /README.md (fuzzy)
 docs/test-document.md:9 | ../LICENS.md | broken | File not found: <root>/LICENS.md
+merge:docs/test-document.md:31 | ../READM.md + ../LICENS.md | Read the [README](/README.md) and the [license](../LICENS.md) before starting.
