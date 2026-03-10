@@ -6,8 +6,85 @@ import { LinkInfo, CheckResult, Config } from './types';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
-// Cache results by URL to avoid duplicate checks
-const resultCache = new Map<string, { ok: boolean; statusCode?: number; error?: string }>();
+// Cache check results by URL to avoid duplicate checks and carry redirect metadata across call sites
+const resultCache = new Map<string, { ok: boolean; statusCode?: number; error?: string; correctedUrl?: string; suggestionOnly?: boolean }>();
+
+// Mimic a real browser to avoid bot-detection blocks from sites like Cloudflare, Akamai, etc.
+const BROWSER_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.5',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+};
+
+/**
+ * Manually follow redirect chains so we can detect when a URL was redirected
+ * and suggest updating the link to the final destination.
+ *
+ * @throws {Error} When the redirect limit is exceeded ("Too many redirects").
+ * @throws {Error} When a request times out (AbortError via the AbortController).
+ */
+async function followRedirects(
+  url: string,
+  method: string,
+  timeout: number,
+  headers: Record<string, string>,
+  maxRedirects = 10
+): Promise<{ finalUrl: string; status: number; redirected: boolean }> {
+  let currentUrl = url;
+  let currentMethod = method;
+
+  for (let i = 0; i < maxRedirects; i++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    let res: Response;
+    try {
+      res = await fetch(currentUrl, {
+        method: currentMethod,
+        signal: controller.signal,
+        redirect: 'manual',
+        headers,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (![301, 302, 303, 307, 308].includes(res.status)) {
+      // Discard the response body to free the underlying connection
+      res.body?.cancel();
+      return { finalUrl: currentUrl, status: res.status, redirected: currentUrl !== url };
+    }
+
+    const location = res.headers.get('location');
+    // Discard the response body for redirect responses
+    res.body?.cancel();
+    if (!location) {
+      // Redirect status but no Location header: this is a protocol violation.
+      // Treat current response as final but warn so the issue is visible.
+      core.warning(`[external] ${currentUrl} returned HTTP ${res.status} with no Location header`);
+      return { finalUrl: currentUrl, status: res.status, redirected: currentUrl !== url };
+    }
+
+    try {
+      currentUrl = new URL(location, currentUrl).href;
+    } catch {
+      throw new Error(`Malformed redirect Location header from ${currentUrl}: ${location}`);
+    }
+
+    // 303 always switches to GET per HTTP spec.
+    // 307/308 preserve the original method (no change needed).
+    if (res.status === 303) {
+      currentMethod = 'GET';
+    }
+  }
+
+  throw new Error('Too many redirects');
+}
 
 // Lazily built index of every non-ignored file in the repo
 let repoFilesCache: string[] | null = null;
@@ -404,51 +481,46 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
 }
 
 /**
+ * Build the final redirect URL, re-attaching the fragment from the original URL
+ * when the redirect target does not include one (servers typically strip
+ * fragments from Location headers).
+ */
+function buildRedirectUrl(originalUrl: string, finalUrl: string): string {
+  const originalHash = originalUrl.indexOf('#') >= 0 ? originalUrl.slice(originalUrl.indexOf('#')) : '';
+  if (!originalHash) return finalUrl;
+
+  // If the final URL already has a fragment, keep it as-is
+  if (finalUrl.indexOf('#') >= 0) return finalUrl;
+
+  return finalUrl + originalHash;
+}
+
+/**
  * Check an external HTTP/HTTPS link.
  */
 async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResult> {
   const cached = resultCache.get(link.url);
-  if (cached) return { link, ...cached };
+  if (cached) {
+    // Reconstruct suggestion from cached correctedUrl since lineContent varies per call site
+    if (cached.correctedUrl && cached.suggestionOnly) {
+      const suggestion = link.lineContent.trimEnd().replace(link.url, () => cached.correctedUrl!);
+      return { link, ...cached, suggestion };
+    }
+    return { link, ...cached };
+  }
 
   const timeout = config.timeout;
 
-  const tryFetch = async (method: string): Promise<{ ok: boolean; status: number }> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeout);
-    try {
-      const res = await fetch(link.url, {
-        method,
-        signal: controller.signal,
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Upgrade-Insecure-Requests': '1',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-        },
-      });
-      return { ok: res.status < 400, status: res.status };
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
   try {
-    let result = await tryFetch('HEAD');
+    let result = await followRedirects(link.url, 'HEAD', timeout, BROWSER_HEADERS);
 
-    // HEAD returned Method Not Allowed - fall back to GET
+    // HEAD returned Method Not Allowed; retry with GET
     if (result.status === 405) {
-      result = await tryFetch('GET');
+      result = await followRedirects(link.url, 'GET', timeout, BROWSER_HEADERS);
     }
 
-    // 403 (Forbidden) and 429 (Too Many Requests) indicate the server is
-    // actively blocking automated access (bot protection, rate limiting).
-    // The URL itself is valid - treat as ok to avoid false positives.
+    // 403/429: bot-blocked, treat as ok. Do not suggest redirects here because
+    // the final URL after a 403/429 may be a WAF/captcha page, not the real content.
     if (result.status === 403 || result.status === 429) {
       core.debug(`[external] ${link.url} returned HTTP ${result.status} - treating as bot-blocked, skipping`);
       const r = { ok: true, statusCode: result.status };
@@ -456,16 +528,33 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
       return { link, ...r };
     }
 
-    const r = { ok: result.ok, statusCode: result.status };
-    if (!result.ok) {
-      resultCache.set(link.url, { ...r, error: `HTTP ${result.status}` });
-      return { link, ...r, error: `HTTP ${result.status}` };
+    const ok = result.status < 400;
+
+    if (ok && result.redirected) {
+      const correctedUrl = buildRedirectUrl(link.url, result.finalUrl);
+      const suggestion = link.lineContent.trimEnd().replace(link.url, () => correctedUrl);
+      const r = { ok: true, statusCode: result.status, correctedUrl, suggestionOnly: true };
+      resultCache.set(link.url, r);
+      return { link, ...r, suggestion };
     }
+
+    if (!ok) {
+      const r = { ok: false, statusCode: result.status, error: `HTTP ${result.status}` };
+      resultCache.set(link.url, r);
+      return { link, ...r };
+    }
+
+    const r = { ok: true, statusCode: result.status };
     resultCache.set(link.url, r);
     return { link, ...r };
   } catch (err: unknown) {
     const isTimeout = err instanceof Error && err.name === 'AbortError';
-    const errorMsg = isTimeout ? `Timed out after ${timeout}ms` : `Network error: ${String(err)}`;
+    const isRedirectError = err instanceof Error && (err.message.startsWith('Too many redirects') || err.message.startsWith('Malformed redirect'));
+    const errorMsg = isTimeout
+      ? `Timed out after ${timeout}ms`
+      : isRedirectError
+        ? err.message
+        : `Network error: ${String(err)}`;
     const r = { ok: false, error: errorMsg };
     resultCache.set(link.url, r);
     return { link, ...r };

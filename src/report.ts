@@ -88,7 +88,13 @@ function formatBrokenComment(result: CheckResult): string {
 }
 
 function formatImprovementComment(result: CheckResult): string {
-  const { link } = result;
+  const { link, correctedUrl } = result;
+  if (link.type === 'external' && correctedUrl) {
+    return [
+      `This link redirects to \`${correctedUrl}\`. Consider updating it to point directly to the final destination.`,
+      `Current: \`${link.url}\``,
+    ].join('\n');
+  }
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
     `Current: \`${link.url}\``,
@@ -282,7 +288,9 @@ async function reportPR(
  */
 function reportSummary(results: CheckResult[]): void {
   const broken = results.filter(r => !r.ok);
-  const improvements = results.filter(r => r.ok && r.suggestionOnly);
+  const allImprovements = results.filter(r => r.ok && r.suggestionOnly);
+  const redirectSuggestions = allImprovements.filter(r => r.link.type === 'external');
+  const rootRelativeSuggestions = allImprovements.filter(r => r.link.type !== 'external');
   const total = results.length;
 
   const summary: string[] = [
@@ -290,7 +298,8 @@ function reportSummary(results: CheckResult[]): void {
     '',
     `- **Total links checked:** ${total}`,
     `- **Broken links found:** ${broken.length}`,
-    `- **Root-relative suggestions:** ${improvements.length}`,
+    `- **Redirect suggestions:** ${redirectSuggestions.length}`,
+    `- **Root-relative suggestions:** ${rootRelativeSuggestions.length}`,
     '',
   ];
 
@@ -308,8 +317,24 @@ function reportSummary(results: CheckResult[]): void {
     );
   }
 
-  if (improvements.length > 0) {
-    const rows = improvements
+  if (redirectSuggestions.length > 0) {
+    const rows = redirectSuggestions
+      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` | \`${r.correctedUrl}\` |`)
+      .join('\n');
+    summary.push(
+      '### Redirect Suggestions',
+      '',
+      'These links are redirected to a different URL. Consider updating them to point directly to the final destination.',
+      '',
+      '| File | Line | Current URL | Redirects To |',
+      '|------|------|-------------|--------------|',
+      rows,
+      ''
+    );
+  }
+
+  if (rootRelativeSuggestions.length > 0) {
+    const rows = rootRelativeSuggestions
       .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` |`)
       .join('\n');
     summary.push(
@@ -325,8 +350,8 @@ function reportSummary(results: CheckResult[]): void {
     );
   }
 
-  if (broken.length === 0 && improvements.length === 0) {
-    summary.push('All links are valid and root-relative!');
+  if (broken.length === 0 && allImprovements.length === 0) {
+    summary.push('All links are valid!');
   }
 
   core.summary.addRaw(summary.join('\n')).write().catch(err => {
@@ -341,7 +366,15 @@ function reportSummary(results: CheckResult[]): void {
     });
   }
 
-  for (const result of improvements) {
+  for (const result of redirectSuggestions) {
+    core.notice(`Redirected link: ${result.link.url} -> ${result.correctedUrl}`, {
+      file: result.link.filePath,
+      startLine: result.link.line,
+      title: 'Update Redirected Link',
+    });
+  }
+
+  for (const result of rootRelativeSuggestions) {
     core.notice(`Relative link should be root-relative: ${result.link.url}`, {
       file: result.link.filePath,
       startLine: result.link.line,
