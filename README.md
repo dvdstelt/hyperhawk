@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="media/hyperhawk-banner.png" alt="HyperHawk" width="500" />
+  <img src="/media/hyperhawk-banner.png" alt="HyperHawk" width="500" />
   <p>A GitHub Action that scans your markdown files for broken links and reports them directly on pull requests as inline review comments, including one-click suggestions to fix them.</p>
 </div>
 
