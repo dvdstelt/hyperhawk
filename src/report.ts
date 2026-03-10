@@ -39,17 +39,22 @@ function parseDiffLines(patch: string | undefined): Set<number> {
  * (active, outdated, or resolved) it is never re-posted.
  */
 function makeMarker(url: string): string {
-  return `\n<!-- hyperhawk url="${url}" -->`;
+  return `<!-- hyperhawk url="${url}" -->`;
 }
 
-function parseMarker(body: string | null | undefined): { url: string } | null {
-  if (!body) return null;
-  const m = /<!-- hyperhawk url="([^"]+)" -->/.exec(body);
-  return m ? { url: m[1] } : null;
+function parseMarkers(body: string | null | undefined): string[] {
+  if (!body) return [];
+  const urls: string[] = [];
+  const re = /<!-- hyperhawk url="([^"]+)" -->/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    urls.push(m[1]);
+  }
+  return urls;
 }
 
 function formatBrokenComment(result: CheckResult): string {
-  const { link, suggestion, correctedUrl, isFuzzyMatch, statusCode } = result;
+  const { link, correctedUrl, isFuzzyMatch, statusCode } = result;
   const lines: string[] = [];
 
   if (link.type === 'internal') {
@@ -79,23 +84,77 @@ function formatBrokenComment(result: CheckResult): string {
     );
   }
 
-  if (suggestion) {
-    lines.push('', '```suggestion', suggestion, '```');
-  }
-
   return lines.join('\n');
 }
 
 function formatImprovementComment(result: CheckResult): string {
-  const { link, suggestion } = result;
+  const { link } = result;
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
     `Current: \`${link.url}\``,
-    '',
-    '```suggestion',
-    suggestion!,
-    '```',
   ].join('\n');
+}
+
+/**
+ * Merge multiple results on the same line into one review comment.
+ * Produces a single suggestion block that applies all fixes at once.
+ */
+export function mergeResultsForLine(group: CheckResult[]): { body: string; markers: string[] } {
+  const bodyParts: string[] = [];
+  const markers: string[] = [];
+
+  // Build a merged suggestion line by applying all URL replacements
+  // Start from the original lineContent (same for all results on this line)
+  let mergedLine: string | null = group[0].link.lineContent.trimEnd();
+  let hasSuggestion = false;
+
+  for (const result of group) {
+    markers.push(makeMarker(result.link.url));
+
+    if (!result.ok) {
+      bodyParts.push(formatBrokenComment(result));
+    } else if (result.suggestionOnly) {
+      bodyParts.push(formatImprovementComment(result));
+    }
+
+    if (result.correctedUrl) {
+      mergedLine = mergedLine!.replace(result.link.url, result.correctedUrl);
+      hasSuggestion = true;
+    } else if (result.suggestion) {
+      // suggestion has the full replaced line; extract what the URL was replaced with
+      const replacedUrl = extractReplacedUrl(result.link.lineContent, result.suggestion, result.link.url);
+      if (replacedUrl !== null) {
+        mergedLine = mergedLine!.replace(result.link.url, replacedUrl);
+        hasSuggestion = true;
+      }
+    }
+  }
+
+  const parts = [bodyParts.join('\n\n')];
+  if (hasSuggestion && mergedLine !== null) {
+    parts.push('', '```suggestion', mergedLine, '```');
+  }
+
+  return { body: parts.join('\n'), markers };
+}
+
+/**
+ * Given the original line, a suggestion line, and the original URL,
+ * figure out what the URL was replaced with in the suggestion.
+ */
+function extractReplacedUrl(originalLine: string, suggestionLine: string, originalUrl: string): string | null {
+  const idx = originalLine.indexOf(originalUrl);
+  if (idx < 0) return null;
+
+  const before = originalLine.slice(0, idx);
+  const after = originalLine.slice(idx + originalUrl.length);
+
+  // The suggestion should have the same prefix and suffix
+  if (!suggestionLine.startsWith(before)) return null;
+  const afterIdx = after.length > 0 ? suggestionLine.lastIndexOf(after) : suggestionLine.length;
+  if (afterIdx < 0) return null;
+
+  return suggestionLine.slice(before.length, afterIdx);
 }
 
 /**
@@ -137,9 +196,8 @@ async function reportPR(
       per_page: 100,
     });
     for (const comment of existing.data) {
-      const marker = parseMarker(comment.body);
-      if (marker) {
-        alreadyCommented.add(marker.url);
+      for (const url of parseMarkers(comment.body)) {
+        alreadyCommented.add(url);
       }
     }
   } catch (err) {
@@ -150,28 +208,37 @@ async function reportPR(
   const reviewComments: ReviewComment[] = [];
   const notInDiff: CheckResult[] = [];
 
-  for (const result of broken) {
+  // Collect commentable results, filtering out already-commented and out-of-diff
+  const commentable: CheckResult[] = [];
+  for (const result of [...broken, ...improvements]) {
     if (!isCommentable(result.link.filePath, result.link.line)) {
-      notInDiff.push(result);
+      if (!result.ok) notInDiff.push(result);
       continue;
     }
     if (alreadyCommented.has(result.link.url)) continue;
-    reviewComments.push({
-      path: result.link.filePath,
-      line: result.link.line,
-      side: 'RIGHT',
-      body: formatBrokenComment(result) + makeMarker(result.link.url),
-    });
+    commentable.push(result);
   }
 
-  for (const result of improvements) {
-    if (!isCommentable(result.link.filePath, result.link.line)) continue;
-    if (alreadyCommented.has(result.link.url)) continue;
+  // Group by file:line so multiple results on the same line get one comment
+  const grouped = new Map<string, CheckResult[]>();
+  for (const result of commentable) {
+    const key = `${result.link.filePath}:${result.link.line}`;
+    let group = grouped.get(key);
+    if (!group) {
+      group = [];
+      grouped.set(key, group);
+    }
+    group.push(result);
+  }
+
+  for (const group of grouped.values()) {
+    const first = group[0];
+    const { body, markers } = mergeResultsForLine(group);
     reviewComments.push({
-      path: result.link.filePath,
-      line: result.link.line,
+      path: first.link.filePath,
+      line: first.link.line,
       side: 'RIGHT',
-      body: formatImprovementComment(result) + makeMarker(result.link.url),
+      body: body + '\n' + markers.join('\n'),
     });
   }
 

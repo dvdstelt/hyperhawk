@@ -26,6 +26,10 @@ For troubleshooting, see the [FAQ](../../faq/common-issues.md).
 
 See the [contribution guide](../CONTRIBUTING.md) for how to contribute.
 
+## Multiple Links on One Line (should produce one merged suggestion)
+
+Read the [README](../READM.md) and the [license](../LICENS.md) before starting.
+
 ## Same-folder Link (should NOT get root-relative suggestion)
 
 You can also refer to the [configuration reference](./configuration.md) for all available options.
@@ -48,7 +52,7 @@ See the [docs](https://...) for more information.
 
 The [README](https://github.com/dvdstelt/hyperhawk/blob/main/README.md) can be a local link.
 
-See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/docs/test-document.md) which is in the same folder.
+See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/tests/test-document.md) which is in the same folder.
 
 The [missing file](https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md) should be reported as broken.
 

@@ -1,7 +1,7 @@
 /**
  * Snapshot test for HyperHawk's link checking.
  *
- * Runs extract + check against docs/test-document.md and writes
+ * Runs extract + check against tests/test-document.md and writes
  * a stable sorted output. CI compares this against expected-output.txt.
  *
  * Tests internal links and same-org self-repo links (which resolve
@@ -12,10 +12,11 @@ import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
 import { checkLinks } from '../src/check';
 import { Config, CheckResult } from '../src/types';
+import { mergeResultsForLine } from '../src/report';
 
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
-  const testFile = path.join(repoRoot, 'docs', 'test-document.md');
+  const testFile = path.join(repoRoot, 'tests', 'test-document.md');
 
   const config: Config = {
     token: '',
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
     checkSameOrg: true,
     ignorePatterns: [],
     timeout: 5000,
-    filePatterns: ['docs/test-document.md'],
+    filePatterns: ['tests/test-document.md'],
     concurrency: 1,
   };
 
@@ -56,6 +57,34 @@ async function main(): Promise<void> {
     .sort();
 
   process.stdout.write(lines.join('\n') + '\n');
+
+  // --- Merge test: group results by line and output merged suggestions ---
+  const grouped = new Map<string, CheckResult[]>();
+  for (const r of results) {
+    const key = `${r.link.filePath}:${r.link.line}`;
+    let group = grouped.get(key);
+    if (!group) {
+      group = [];
+      grouped.set(key, group);
+    }
+    group.push(r);
+  }
+
+  const mergeLines: string[] = [];
+  for (const [key, group] of [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (group.length < 2) continue;
+    const { body } = mergeResultsForLine(group);
+    // Extract just the suggestion block if present
+    const suggestionMatch = /```suggestion\n(.*)\n```/s.exec(body);
+    const suggestion = suggestionMatch ? suggestionMatch[1] : '(no suggestion)';
+    const urls = group.map(r => r.link.url).join(' + ');
+    const rel = path.relative(repoRoot, group[0].link.filePath).replace(/\\/g, '/');
+    mergeLines.push(`merge:${rel}:${group[0].link.line} | ${urls} | ${suggestion}`);
+  }
+
+  if (mergeLines.length > 0) {
+    process.stdout.write(mergeLines.join('\n') + '\n');
+  }
 }
 
 main().catch(err => {
