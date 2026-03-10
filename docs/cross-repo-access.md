@@ -30,20 +30,41 @@ A GitHub App is not tied to any individual account and works on both personal ac
 4. Install the app on your account or organisation and select **All repositories** (or specific ones)
 5. Store the App ID and private key as secrets
 
-Pass the app token via `cross-repo-token` so that `GITHUB_TOKEN` (which holds `pull-requests: write`) continues to handle PR comments:
+Pass the app token via `cross-repo-token` so that `GITHUB_TOKEN` (which holds `pull-requests: write`) continues to handle PR comments.
+
+**.github/workflows/link-check.yml**
 
 ```yaml
-- uses: actions/create-github-app-token@v1
-  id: app-token
-  with:
-    app-id: ${{ secrets.APP_ID }}
-    private-key: ${{ secrets.APP_PRIVATE_KEY }}
-    owner: ${{ github.repository_owner }}
+name: Hyperhawk
 
-- uses: dvdstelt/hyperhawk@v1
-  with:
-    token: ${{ secrets.GITHUB_TOKEN }}
-    cross-repo-token: ${{ steps.app-token.outputs.token }}
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 1'   # every Monday at midnight
+
+jobs:
+  link-check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - uses: dvdstelt/hyperhawk@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cross-repo-token: ${{ steps.app-token.outputs.token }}
 ```
 
 The `owner` input on `create-github-app-token` is required to generate a token scoped to all repos the app can access, rather than just the current repository.

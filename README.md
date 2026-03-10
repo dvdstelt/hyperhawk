@@ -31,7 +31,7 @@
 **.github/workflows/link-check.yml**
 
 ```yaml
-name: Link Check
+name: Hyperhawk
 
 on:
   pull_request:
@@ -55,7 +55,13 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-> **Versioning:** `@v1` always runs the latest `v1.x.x` release. For a fully pinned version use a tag like `@v1.2.1`.
+> [!NOTE]
+>
+> **Versioning:**
+>
+> `@v1` always runs the latest `v1.x.x` release. For a fully pinned version use a tag like `@v1.2.1`.
+>
+> You can also use `@main` to always run the very latest code. Since HyperHawk only reads your links and never modifies your repository, the worst a bad commit can do is report a false positive or miss a broken link.
 
 Need to check links into **private repositories** in the same org? See [Cross-repo access](/docs/cross-repo-access.md).
 
