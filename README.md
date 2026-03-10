@@ -16,6 +16,16 @@
 
 ---
 
+## Documentation
+
+- [Configuration](/docs/configuration.md) - strict mode, ignore patterns, scanning scope
+- [How it works](/docs/how-it-works.md) - link classification, PR review behaviour, permissions
+- [Cross-repo access](/docs/cross-repo-access.md) - checking links into private repositories
+- [Workflow examples](/docs/examples.md) - common workflow configurations
+- [Troubleshooting](/docs/troubleshooting.md) - common issues and solutions
+
+---
+
 ## Quickstart
 
 **.github/workflows/link-check.yml**
@@ -64,13 +74,3 @@ Need to check links into **private repositories** in the same org? See [Cross-re
 | `timeout` | no | `10000` | Timeout in milliseconds for each external link request. |
 | `concurrency` | no | `5` | Number of links checked in parallel. |
 | `strict` | no | `false` | Fail the workflow when broken links are found. |
-
----
-
-## Documentation
-
-- [Configuration](/docs/configuration.md) - strict mode, ignore patterns, scanning scope
-- [How it works](/docs/how-it-works.md) - link classification, PR review behaviour, permissions
-- [Cross-repo access](/docs/cross-repo-access.md) - checking links into private repositories
-- [Workflow examples](/docs/examples.md) - common workflow configurations
-- [Troubleshooting](/docs/troubleshooting.md) - common issues and solutions

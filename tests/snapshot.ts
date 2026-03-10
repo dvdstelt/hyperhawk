@@ -1,7 +1,7 @@
 /**
  * Snapshot test for HyperHawk's link checking.
  *
- * Runs extract + check against docs/test-document.md and writes
+ * Runs extract + check against tests/test-document.md and writes
  * a stable sorted output. CI compares this against expected-output.txt.
  *
  * Tests internal links and same-org self-repo links (which resolve
@@ -16,7 +16,7 @@ import { mergeResultsForLine } from '../src/report';
 
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
-  const testFile = path.join(repoRoot, 'docs', 'test-document.md');
+  const testFile = path.join(repoRoot, 'tests', 'test-document.md');
 
   const config: Config = {
     token: '',
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     checkSameOrg: true,
     ignorePatterns: [],
     timeout: 5000,
-    filePatterns: ['docs/test-document.md'],
+    filePatterns: ['tests/test-document.md'],
     concurrency: 1,
   };
 

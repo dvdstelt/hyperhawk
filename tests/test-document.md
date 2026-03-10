@@ -52,7 +52,7 @@ See the [docs](https://...) for more information.
 
 The [README](https://github.com/dvdstelt/hyperhawk/blob/main/README.md) can be a local link.
 
-See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/docs/test-document.md) which is in the same folder.
+See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/tests/test-document.md) which is in the same folder.
 
 The [missing file](https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md) should be reported as broken.
 
