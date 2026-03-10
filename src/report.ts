@@ -351,7 +351,7 @@ function reportSummary(results: CheckResult[]): void {
   }
 
   if (broken.length === 0 && allImprovements.length === 0) {
-    summary.push('All links are valid and root-relative!');
+    summary.push('All links are valid!');
   }
 
   core.summary.addRaw(summary.join('\n')).write().catch(err => {

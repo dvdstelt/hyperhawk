@@ -6,9 +6,10 @@ import { LinkInfo, CheckResult, Config } from './types';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
-// Cache results by URL to avoid duplicate checks
+// Cache check results by URL to avoid duplicate checks and carry redirect metadata across call sites
 const resultCache = new Map<string, { ok: boolean; statusCode?: number; error?: string; correctedUrl?: string; suggestionOnly?: boolean }>();
 
+// Mimic a real browser to avoid bot-detection blocks from sites like Cloudflare, Akamai, etc.
 const BROWSER_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -24,6 +25,9 @@ const BROWSER_HEADERS: Record<string, string> = {
 /**
  * Manually follow redirect chains so we can detect when a URL was redirected
  * and suggest updating the link to the final destination.
+ *
+ * @throws {Error} When the redirect limit is exceeded ("Too many redirects").
+ * @throws {Error} When a request times out (AbortError via the AbortController).
  */
 async function followRedirects(
   url: string,
@@ -51,18 +55,29 @@ async function followRedirects(
     }
 
     if (![301, 302, 303, 307, 308].includes(res.status)) {
+      // Discard the response body to free the underlying connection
+      res.body?.cancel();
       return { finalUrl: currentUrl, status: res.status, redirected: currentUrl !== url };
     }
 
     const location = res.headers.get('location');
+    // Discard the response body for redirect responses
+    res.body?.cancel();
     if (!location) {
-      // Redirect status but no Location header; treat current response as final
+      // Redirect status but no Location header: this is a protocol violation.
+      // Treat current response as final but warn so the issue is visible.
+      core.warning(`[external] ${currentUrl} returned HTTP ${res.status} with no Location header`);
       return { finalUrl: currentUrl, status: res.status, redirected: currentUrl !== url };
     }
 
-    currentUrl = new URL(location, currentUrl).href;
+    try {
+      currentUrl = new URL(location, currentUrl).href;
+    } catch {
+      throw new Error(`Malformed redirect Location header from ${currentUrl}: ${location}`);
+    }
 
-    // 303: switch to GET per HTTP spec
+    // 303 always switches to GET per HTTP spec.
+    // 307/308 preserve the original method (no change needed).
     if (res.status === 303) {
       currentMethod = 'GET';
     }
@@ -466,8 +481,9 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
 }
 
 /**
- * Build the final redirect URL, preserving any fragment from the original URL
- * if the redirect chain dropped it.
+ * Build the final redirect URL, re-attaching the fragment from the original URL
+ * when the redirect target does not include one (servers typically strip
+ * fragments from Location headers).
  */
 function buildRedirectUrl(originalUrl: string, finalUrl: string): string {
   const originalHash = originalUrl.indexOf('#') >= 0 ? originalUrl.slice(originalUrl.indexOf('#')) : '';
@@ -487,7 +503,7 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
   if (cached) {
     // Reconstruct suggestion from cached correctedUrl since lineContent varies per call site
     if (cached.correctedUrl && cached.suggestionOnly) {
-      const suggestion = link.lineContent.trimEnd().replace(link.url, cached.correctedUrl);
+      const suggestion = link.lineContent.trimEnd().replace(link.url, () => cached.correctedUrl!);
       return { link, ...cached, suggestion };
     }
     return { link, ...cached };
@@ -503,16 +519,10 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
       result = await followRedirects(link.url, 'GET', timeout, BROWSER_HEADERS);
     }
 
-    // 403/429: bot-blocked, treat as ok but still suggest redirect if URL changed
+    // 403/429: bot-blocked, treat as ok. Do not suggest redirects here because
+    // the final URL after a 403/429 may be a WAF/captcha page, not the real content.
     if (result.status === 403 || result.status === 429) {
       core.debug(`[external] ${link.url} returned HTTP ${result.status} - treating as bot-blocked, skipping`);
-      if (result.redirected) {
-        const correctedUrl = buildRedirectUrl(link.url, result.finalUrl);
-        const suggestion = link.lineContent.trimEnd().replace(link.url, correctedUrl);
-        const r = { ok: true, statusCode: result.status, correctedUrl, suggestionOnly: true };
-        resultCache.set(link.url, r);
-        return { link, ...r, suggestion };
-      }
       const r = { ok: true, statusCode: result.status };
       resultCache.set(link.url, r);
       return { link, ...r };
@@ -522,7 +532,7 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
 
     if (ok && result.redirected) {
       const correctedUrl = buildRedirectUrl(link.url, result.finalUrl);
-      const suggestion = link.lineContent.trimEnd().replace(link.url, correctedUrl);
+      const suggestion = link.lineContent.trimEnd().replace(link.url, () => correctedUrl);
       const r = { ok: true, statusCode: result.status, correctedUrl, suggestionOnly: true };
       resultCache.set(link.url, r);
       return { link, ...r, suggestion };
@@ -539,7 +549,12 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
     return { link, ...r };
   } catch (err: unknown) {
     const isTimeout = err instanceof Error && err.name === 'AbortError';
-    const errorMsg = isTimeout ? `Timed out after ${timeout}ms` : `Network error: ${String(err)}`;
+    const isRedirectError = err instanceof Error && (err.message.startsWith('Too many redirects') || err.message.startsWith('Malformed redirect'));
+    const errorMsg = isTimeout
+      ? `Timed out after ${timeout}ms`
+      : isRedirectError
+        ? err.message
+        : `Network error: ${String(err)}`;
     const r = { ok: false, error: errorMsg };
     resultCache.set(link.url, r);
     return { link, ...r };
