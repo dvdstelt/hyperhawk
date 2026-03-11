@@ -4,7 +4,9 @@
 ::debug::[same-org] URL points to current repo, suggesting local path: https://github.com/dvdstelt/hyperhawk/blob/main/tests/test-document.md
 ::debug::[same-org] Checking https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md
 ::debug::[same-org] URL points to current repo, suggesting local path: https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md
-::debug::[external] <server>/redirect-to-403 returned HTTP 403 - treating as bot-blocked, skipping
+::debug::[external] <server>/redirect-to-403 returned HTTP 403 - treating as auth/bot-blocked, skipping
+::debug::[external] <server>/auth-required returned HTTP 401 - treating as auth/bot-blocked, skipping
+::debug::[external] <server>/cross-domain-redirect redirected to different host <server-alt>/final - skipping suggestion
 tests/test-document.md:1001 | <server>/redirect-301 | suggestion -> <server>/final
 tests/test-document.md:1002 | <server>/redirect-302 | suggestion -> <server>/final
 tests/test-document.md:1003 | <server>/no-redirect | ok
@@ -12,7 +14,9 @@ tests/test-document.md:1004 | <server>/loop-a | broken | Too many redirects
 tests/test-document.md:1005 | <server>/redirect-301#my-anchor | suggestion -> <server>/final#my-anchor
 tests/test-document.md:1006 | <server>/redirect-with-fragment#my-anchor | suggestion -> <server>/final#server-fragment
 tests/test-document.md:1007 | <server>/redirect-to-403 | ok
-tests/test-document.md:1008 | <server>/not-found | broken | HTTP 404
+tests/test-document.md:1008 | <server>/auth-required | ok
+tests/test-document.md:1009 | <server>/cross-domain-redirect | ok
+tests/test-document.md:1010 | <server>/not-found | broken | HTTP 404
 tests/test-document.md:11 | ../release.ps | broken | File not found: <root>/release.ps
 tests/test-document.md:13 | ../tsconfig.jso | broken | File not found: <root>/tsconfig.jso
 tests/test-document.md:15 | ../action.ym | broken | File not found: <root>/action.ym
