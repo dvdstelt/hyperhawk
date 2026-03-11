@@ -1,0 +1,5 @@
+# Normalize all text files to LF on checkout
+* text=auto eol=lf
+
+# Keep PowerShell scripts as CRLF for Windows compatibility
+*.ps1 text eol=crlf
