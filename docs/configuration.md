@@ -19,6 +19,8 @@ To fail the workflow on broken links, enable strict mode in one of two ways:
 
 [Testlink](https://github.com/dvdstelt/hyperhawk/blob/main/docs/newfile.md)
 
+[Another testlink](https://github.com/dvdstelt/hyperhawk/blob/main/test-folder/testfile.md)
+
 Go to **Settings > Secrets and variables > Actions** and create a secret named `LINK_CHECK_STRICT` with the value `true`. Then pass it in the workflow:
 
 ```yaml
@@ -59,5 +61,6 @@ Common use cases:
 On pull requests, only changed files are scanned. Broken links in files that are not part of the diff are reported as check annotations rather than inline comments.
 
 The following directories are always excluded from scanning: `node_modules/`, `.git/`, `dist/`, `lib/`.
+
 
 
