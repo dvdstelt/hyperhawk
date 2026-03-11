@@ -454,10 +454,12 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
 
     core.debug(`[same-org] Verifying repo ${repoOwner}/${repoName} via authenticated API`);
 
-    // Verify repo exists
+    // Verify repo exists and retrieve the default branch name
+    let defaultBranch: string | undefined;
     try {
       const repoData = await octokit.rest.repos.get({ owner: repoOwner, repo: repoName });
-      core.debug(`[same-org] Repo ${repoOwner}/${repoName} found - private=${repoData.data.private}`);
+      defaultBranch = repoData.data.default_branch;
+      core.debug(`[same-org] Repo ${repoOwner}/${repoName} found - private=${repoData.data.private}, default_branch=${defaultBranch}`);
     } catch (err: unknown) {
       const status = getStatusCode(err);
       core.debug(`[same-org] Repo ${repoOwner}/${repoName} returned HTTP ${status ?? 'unknown'}: ${String(err)}`);
@@ -501,6 +503,33 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
       } catch (err: unknown) {
         const status = getStatusCode(err);
         core.debug(`[same-org] File ${filePath} in ${repoOwner}/${repoName} returned HTTP ${status ?? 'unknown'}: ${String(err)}`);
+
+        // If the file was not found and the URL ref differs from the default
+        // branch, retry on the default branch. GitHub's web UI redirects
+        // master -> main transparently, but the API does not.
+        if (status === 404 && defaultBranch && ref !== defaultBranch) {
+          core.debug(`[same-org] Retrying ${filePath} with default branch ${defaultBranch} (URL used ${ref})`);
+          try {
+            await octokit.rest.repos.getContent({
+              owner: repoOwner,
+              repo: repoName,
+              path: filePath,
+              ref: defaultBranch,
+            });
+            core.debug(`[same-org] File ${filePath} found on ${defaultBranch}, suggesting branch update`);
+            const correctedUrl = link.url.replace(
+              `/${parts[2]}/${ref}/`,
+              `/${parts[2]}/${defaultBranch}/`
+            );
+            const suggestion = link.lineContent.trimEnd().replace(link.url, correctedUrl);
+            const r = { ok: true, correctedUrl, suggestionOnly: true };
+            resultCache.set(link.url, r);
+            return { link, ...r, suggestion };
+          } catch {
+            core.debug(`[same-org] File ${filePath} also not found on ${defaultBranch}`);
+          }
+        }
+
         const r = {
           ok: false,
           statusCode: status,
