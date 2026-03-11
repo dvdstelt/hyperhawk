@@ -17,9 +17,9 @@ To fail the workflow on broken links, enable strict mode in one of two ways:
 
 **Repository secret (recommended for gradual rollout):**
 
-[Testlink](https://github.com/dvdstelt/hyperhawk/blob/main/docs/newfile.md)
+[Testlink](newfile.md)
 
-[Another testlink](https://github.com/dvdstelt/hyperhawk/blob/main/test-folder/testfile.md)
+[Another testlink](/test-folder/testfile.md)
 
 Go to **Settings > Secrets and variables > Actions** and create a secret named `LINK_CHECK_STRICT` with the value `true`. Then pass it in the workflow:
 
