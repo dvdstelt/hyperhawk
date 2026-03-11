@@ -99,6 +99,9 @@ function formatImprovementComment(result: CheckResult): string {
       `Current: \`${link.url}\``,
     ].join('\n');
   }
+  if (link.type === 'same-org' && correctedUrl) {
+    return `This link points to the current repository. Use \`${correctedUrl}\` instead.`;
+  }
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
     `Current: \`${link.url}\``,
