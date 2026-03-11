@@ -356,6 +356,37 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   }
 
   if (!exists) {
+    // Try to find the correct file via exact filename or fuzzy stem match,
+    // same as checkInternal does for broken internal links.
+    const filename = path.basename(filePath);
+    const stem = path.basename(filePath, path.extname(filePath));
+    const ext = path.extname(filePath);
+
+    let correctedAbs: string | undefined;
+    let isFuzzy = false;
+
+    const allFiles = getAllRepoFiles(config.repoRoot);
+    const exactMatches = allFiles.filter(f => path.basename(f) === filename);
+    if (exactMatches.length >= 1) {
+      correctedAbs = findClosest(exactMatches, sourceDir);
+    }
+
+    if (!correctedAbs && stem) {
+      const fuzzyMatches = fuzzyFindMatches(stem, ext, config.repoRoot);
+      correctedAbs = findClosest(fuzzyMatches, sourceDir);
+      if (correctedAbs) isFuzzy = true;
+    }
+
+    if (correctedAbs) {
+      const correctedSameFolder = path.dirname(correctedAbs) === sourceDir;
+      localUrl = correctedSameFolder
+        ? path.basename(correctedAbs)
+        : toRootRelative(correctedAbs, config.repoRoot);
+      if (hashIndex !== -1) {
+        localUrl += link.url.substring(hashIndex);
+      }
+    }
+
     const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
     return {
       link,
@@ -363,6 +394,7 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
       error: `File not found: ${resolvedPath}`,
       correctedUrl: localUrl,
       suggestion,
+      isFuzzyMatch: isFuzzy && !!correctedAbs,
     };
   }
 
