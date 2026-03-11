@@ -56,6 +56,8 @@ See the [test document](https://github.com/dvdstelt/hyperhawk/blob/main/tests/te
 
 The [missing file](https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md) should be reported as broken.
 
+The [configuration guide](https://github.com/dvdstelt/hyperhawk/blob/main/docs/configuraton.md) has a typo and should fuzzy-match to the real file.
+
 ## External Links (verified when external checking is enabled)
 
 Thanks to [@dvdstelt](https://github.com/dvdstelt) for the contribution.
