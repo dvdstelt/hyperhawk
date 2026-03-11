@@ -73,9 +73,13 @@ function formatBrokenComment(result: CheckResult): string {
   } else if (link.type === 'same-org') {
     const status = statusCode ? ` (HTTP ${statusCode})` : '';
     lines.push(
-      `The link to \`${link.url}\` could not be resolved${status}.`,
-      'Verify the repository name, branch, and file path are correct.'
+      `The link to \`${link.url}\` could not be resolved${status}.`
     );
+    if (correctedUrl) {
+      lines.push(
+        `This link points to the current repository. Use \`${correctedUrl}\` instead.`
+      );
+    }
   } else {
     const status = statusCode ? `HTTP ${statusCode}` : 'an error';
     lines.push(

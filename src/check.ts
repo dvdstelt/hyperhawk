@@ -342,20 +342,29 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   const resolvedPath = path.join(config.repoRoot, filePath);
   const exists = fs.existsSync(resolvedPath);
 
+  const sourceDir = path.dirname(path.join(config.repoRoot, link.filePath));
+  const isSameFolder = path.dirname(resolvedPath) === sourceDir;
+
+  let localUrl = isSameFolder
+    ? path.basename(filePath)
+    : '/' + filePath;
+
+  // Preserve hash fragment from the original URL
+  const hashIndex = link.url.indexOf('#');
+  if (hashIndex !== -1) {
+    localUrl += link.url.substring(hashIndex);
+  }
+
   if (!exists) {
+    const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
     return {
       link,
       ok: false,
       error: `File not found: ${resolvedPath}`,
+      correctedUrl: localUrl,
+      suggestion,
     };
   }
-
-  const sourceDir = path.dirname(path.join(config.repoRoot, link.filePath));
-  const isSameFolder = path.dirname(resolvedPath) === sourceDir;
-
-  const localUrl = isSameFolder
-    ? path.basename(filePath)
-    : '/' + filePath;
 
   const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
   return {
