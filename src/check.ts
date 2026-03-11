@@ -496,6 +496,19 @@ function buildRedirectUrl(originalUrl: string, finalUrl: string): string {
 }
 
 /**
+ * Returns true if two URLs share the same hostname. Cross-domain redirects
+ * are typically auth/login flows, not content moves, so we suppress
+ * redirect suggestions when the host changes.
+ */
+function isSameHost(urlA: string, urlB: string): boolean {
+  try {
+    return new URL(urlA).hostname === new URL(urlB).hostname;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check an external HTTP/HTTPS link.
  */
 async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResult> {
@@ -519,10 +532,10 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
       result = await followRedirects(link.url, 'GET', timeout, BROWSER_HEADERS);
     }
 
-    // 403/429: bot-blocked, treat as ok. Do not suggest redirects here because
-    // the final URL after a 403/429 may be a WAF/captcha page, not the real content.
-    if (result.status === 403 || result.status === 429) {
-      core.debug(`[external] ${link.url} returned HTTP ${result.status} - treating as bot-blocked, skipping`);
+    // 401/403/429: auth-wall or bot-blocked, treat as ok. The URL exists
+    // but requires authentication or is rate-limiting automated access.
+    if (result.status === 401 || result.status === 403 || result.status === 429) {
+      core.debug(`[external] ${link.url} returned HTTP ${result.status} - treating as auth/bot-blocked, skipping`);
       const r = { ok: true, statusCode: result.status };
       resultCache.set(link.url, r);
       return { link, ...r };
@@ -531,11 +544,19 @@ async function checkExternal(link: LinkInfo, config: Config): Promise<CheckResul
     const ok = result.status < 400;
 
     if (ok && result.redirected) {
-      const correctedUrl = buildRedirectUrl(link.url, result.finalUrl);
-      const suggestion = link.lineContent.trimEnd().replace(link.url, () => correctedUrl);
-      const r = { ok: true, statusCode: result.status, correctedUrl, suggestionOnly: true };
+      // Only suggest updating the URL if the redirect stays on the same host.
+      // Cross-domain redirects are typically auth/login flows, not content moves.
+      if (isSameHost(link.url, result.finalUrl)) {
+        const correctedUrl = buildRedirectUrl(link.url, result.finalUrl);
+        const suggestion = link.lineContent.trimEnd().replace(link.url, () => correctedUrl);
+        const r = { ok: true, statusCode: result.status, correctedUrl, suggestionOnly: true };
+        resultCache.set(link.url, r);
+        return { link, ...r, suggestion };
+      }
+      core.debug(`[external] ${link.url} redirected to different host ${result.finalUrl} - skipping suggestion`);
+      const r = { ok: true, statusCode: result.status };
       resultCache.set(link.url, r);
-      return { link, ...r, suggestion };
+      return { link, ...r };
     }
 
     if (!ok) {

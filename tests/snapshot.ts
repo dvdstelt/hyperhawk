@@ -67,6 +67,18 @@ function startRedirectServer(): Promise<{ baseUrl: string; close: () => Promise<
         res.writeHead(403);
         res.end('Forbidden');
 
+      // 401 (auth-wall, e.g. private Google Sheets)
+      } else if (url === '/auth-required') {
+        res.writeHead(401);
+        res.end('Unauthorized');
+
+      // Cross-domain redirect: redirect from 127.0.0.1 to localhost (different hostname)
+      // Simulates auth redirects like particular-tools.azurewebsites.net -> github.com/login
+      } else if (url === '/cross-domain-redirect') {
+        const addr = server.address() as { port: number };
+        res.writeHead(302, { Location: `http://localhost:${addr.port}/final` });
+        res.end();
+
       // 404 (broken link)
       } else {
         res.writeHead(404);
@@ -104,7 +116,9 @@ function buildExternalLinks(baseUrl: string, testFile: string): LinkInfo[] {
     { url: `${baseUrl}/redirect-301#my-anchor`, text: '301 with fragment', line: 1005, lineContent: `[301 with fragment](${baseUrl}/redirect-301#my-anchor)` },
     { url: `${baseUrl}/redirect-with-fragment#my-anchor`, text: 'server fragment wins', line: 1006, lineContent: `[server fragment wins](${baseUrl}/redirect-with-fragment#my-anchor)` },
     { url: `${baseUrl}/redirect-to-403`, text: 'redirect to 403', line: 1007, lineContent: `[redirect to 403](${baseUrl}/redirect-to-403)` },
-    { url: `${baseUrl}/not-found`, text: 'plain 404', line: 1008, lineContent: `[plain 404](${baseUrl}/not-found)` },
+    { url: `${baseUrl}/auth-required`, text: 'auth required', line: 1008, lineContent: `[auth required](${baseUrl}/auth-required)` },
+    { url: `${baseUrl}/cross-domain-redirect`, text: 'cross-domain redirect', line: 1009, lineContent: `[cross-domain redirect](${baseUrl}/cross-domain-redirect)` },
+    { url: `${baseUrl}/not-found`, text: 'plain 404', line: 1010, lineContent: `[plain 404](${baseUrl}/not-found)` },
   ];
 
   return entries.map(e => ({
@@ -136,9 +150,12 @@ async function main(): Promise<void> {
  */
 function interceptStdout(baseUrl: string): () => void {
   const original = process.stdout.write.bind(process.stdout);
+  // The cross-domain test redirects from 127.0.0.1 to localhost on the same port
+  const port = new URL(baseUrl).port;
+  const localhostUrl = `http://localhost:${port}`;
   process.stdout.write = function (chunk: any, ...args: any[]) {
     if (typeof chunk === 'string' && chunk.startsWith('::')) {
-      chunk = chunk.replaceAll(baseUrl, '<server>');
+      chunk = chunk.replaceAll(baseUrl, '<server>').replaceAll(localhostUrl, '<server-alt>');
     }
     return (original as any)(chunk, ...args);
   } as any;
