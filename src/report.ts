@@ -35,22 +35,36 @@ function parseDiffLines(patch: string | undefined): Set<number> {
 
 /**
  * Hidden marker appended to every comment body.
- * Keyed only on URL - no commit SHA. Once a comment exists for a URL
- * (active, outdated, or resolved) it is never re-posted.
+ * Keyed on file, line, and URL so that the same URL on different
+ * file+line locations each gets its own comment.
  */
-function makeMarker(url: string): string {
-  return `<!-- hyperhawk url="${url}" -->`;
+function makeMarker(file: string, line: number, url: string): string {
+  return `<!-- hyperhawk file="${file}" line="${line}" url="${url}" -->`;
 }
 
-function parseMarkers(body: string | null | undefined): string[] {
-  if (!body) return [];
-  const urls: string[] = [];
-  const re = /<!-- hyperhawk url="([^"]+)" -->/g;
+/**
+ * Parse markers from a comment body and return composite dedup keys.
+ * Supports both the new format (file+line+url) and the legacy format (url only).
+ * Legacy markers return just the URL as the key, which will be handled
+ * specially during dedup to match any occurrence of that URL.
+ */
+function parseMarkers(body: string | null | undefined): { keys: string[]; legacyUrls: string[] } {
+  if (!body) return { keys: [], legacyUrls: [] };
+  const keys: string[] = [];
+  const legacyUrls: string[] = [];
+
+  const newRe = /<!-- hyperhawk file="([^"]+)" line="([^"]+)" url="([^"]+)" -->/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(body)) !== null) {
-    urls.push(m[1]);
+  while ((m = newRe.exec(body)) !== null) {
+    keys.push(`${m[1]}:${m[2]}:${m[3]}`);
   }
-  return urls;
+
+  const oldRe = /<!-- hyperhawk url="([^"]+)" -->/g;
+  while ((m = oldRe.exec(body)) !== null) {
+    legacyUrls.push(m[1]);
+  }
+
+  return { keys, legacyUrls };
 }
 
 function formatBrokenComment(result: CheckResult): string {
@@ -122,7 +136,7 @@ export function mergeResultsForLine(group: CheckResult[]): { body: string; marke
   let hasSuggestion = false;
 
   for (const result of group) {
-    markers.push(makeMarker(result.link.url));
+    markers.push(makeMarker(result.link.filePath, result.link.line, result.link.url));
 
     if (!result.ok) {
       bodyParts.push(formatBrokenComment(result));
@@ -198,9 +212,10 @@ async function reportPR(
 
   // --- Deduplicate inline review comments ---
 
-  // Build a set of URLs that already have a comment, regardless of whether
-  // it is active, outdated, or resolved. Once commented, never re-comment.
+  // Composite keys (file:line:url) that already have a comment.
   const alreadyCommented = new Set<string>();
+  // Legacy URL-only keys from old-format markers: match any occurrence of that URL.
+  const legacyCommentedUrls = new Set<string>();
   try {
     const existing = await octokit.rest.pulls.listReviewComments({
       owner,
@@ -209,8 +224,12 @@ async function reportPR(
       per_page: 100,
     });
     for (const comment of existing.data) {
-      for (const url of parseMarkers(comment.body)) {
-        alreadyCommented.add(url);
+      const { keys, legacyUrls } = parseMarkers(comment.body);
+      for (const key of keys) {
+        alreadyCommented.add(key);
+      }
+      for (const url of legacyUrls) {
+        legacyCommentedUrls.add(url);
       }
     }
   } catch (err) {
@@ -228,7 +247,8 @@ async function reportPR(
       if (!result.ok) notInDiff.push(result);
       continue;
     }
-    if (alreadyCommented.has(result.link.url)) continue;
+    const dedupKey = `${result.link.filePath}:${result.link.line}:${result.link.url}`;
+    if (alreadyCommented.has(dedupKey) || legacyCommentedUrls.has(result.link.url)) continue;
     commentable.push(result);
   }
 
