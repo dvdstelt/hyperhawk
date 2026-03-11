@@ -32,7 +32,7 @@ tests/test-document.md:41 | ../AGENTS.md | suggestion
 tests/test-document.md:43 | ../action.yml | suggestion
 tests/test-document.md:53 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion -> /README.md
 tests/test-document.md:55 | https://github.com/dvdstelt/hyperhawk/blob/main/tests/test-document.md | suggestion -> test-document.md
-tests/test-document.md:57 | https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md | broken | File not found: <root>/does-not-exist.md
+tests/test-document.md:57 | https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md | broken -> /does-not-exist.md
 tests/test-document.md:7 | ../READM.md | broken -> /README.md (fuzzy)
 tests/test-document.md:9 | ../LICENS.md | broken | File not found: <root>/LICENS.md
 merge:tests/test-document.md:31 | ../READM.md + ../LICENS.md | Read the [README](/README.md) and the [license](../LICENS.md) before starting.

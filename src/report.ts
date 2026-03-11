@@ -73,9 +73,13 @@ function formatBrokenComment(result: CheckResult): string {
   } else if (link.type === 'same-org') {
     const status = statusCode ? ` (HTTP ${statusCode})` : '';
     lines.push(
-      `The link to \`${link.url}\` could not be resolved${status}.`,
-      'Verify the repository name, branch, and file path are correct.'
+      `The link to \`${link.url}\` could not be resolved${status}.`
     );
+    if (correctedUrl) {
+      lines.push(
+        `This link points to the current repository. Use \`${correctedUrl}\` instead.`
+      );
+    }
   } else {
     const status = statusCode ? `HTTP ${statusCode}` : 'an error';
     lines.push(
@@ -94,6 +98,9 @@ function formatImprovementComment(result: CheckResult): string {
       `This link redirects to \`${correctedUrl}\`. Consider updating it to point directly to the final destination.`,
       `Current: \`${link.url}\``,
     ].join('\n');
+  }
+  if (link.type === 'same-org' && correctedUrl) {
+    return `This link points to the current repository. Use \`${correctedUrl}\` instead.`;
   }
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
