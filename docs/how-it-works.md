@@ -60,6 +60,8 @@ HyperHawk posts a single `COMMENT`-type review (never `REQUEST_CHANGES`) so it n
 
 When a fix can be determined automatically, the comment includes a GitHub suggestion block you can apply directly from the PR interface with a single click.
 
+File paths in review comments and in the step summary are links to the file at the commit under check, so a reader can open the suggested target or the source line with one click. Check annotations are plain text and cannot contain links.
+
 ### Broken link suggestions
 
 When a broken internal link can be located elsewhere in the repo, HyperHawk suggests the correct path automatically. It first tries an exact filename match; if that fails, it falls back to fuzzy matching based on the filename stem. When multiple candidates exist, the one closest to the source file (fewest directory traversals) is preferred.

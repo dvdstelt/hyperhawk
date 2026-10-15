@@ -1,8 +1,51 @@
 import * as core from '@actions/core';
+import * as path from 'path';
 import { context, getOctokit } from '@actions/github';
-import { CheckResult, Config } from './types';
+import { CheckResult, Config, LinkInfo } from './types';
 
 type Octokit = ReturnType<typeof getOctokit>;
+
+/**
+ * Base URL for links to files in the repository at the commit under check:
+ * <server>/<owner>/<repo>/blob/<sha>. Review comments and the step summary
+ * render Markdown, so paths in them can link to the file on GitHub.
+ */
+function repoBlobBase(config: Config): string {
+  const pr = context.payload.pull_request as { head?: { sha?: string } } | undefined;
+  const ref = pr?.head?.sha ?? context.sha ?? 'HEAD';
+  const server = context.serverUrl ?? 'https://github.com';
+  return `${server}/${config.owner}/${config.repo}/blob/${ref}`;
+}
+
+/**
+ * Resolve a link target (root-relative "/docs/x.md#a" or relative "x.md")
+ * against the file that contains it, and return a repo-relative path with
+ * the anchor kept.
+ */
+function resolveRepoPath(link: LinkInfo, target: string): string {
+  const hashIdx = target.indexOf('#');
+  const anchor = hashIdx >= 0 ? target.slice(hashIdx) : '';
+  const filePart = hashIdx >= 0 ? target.slice(0, hashIdx) : target;
+  const resolved = filePart.startsWith('/')
+    ? filePart.slice(1)
+    : path.posix.normalize(path.posix.join(path.posix.dirname(link.filePath), filePart));
+  return resolved + anchor;
+}
+
+/** Markdown link to a repository path, shown as code. */
+function fileLink(config: Config, link: LinkInfo, target: string): string {
+  return `[\`${target}\`](${repoBlobBase(config)}/${resolveRepoPath(link, target)})`;
+}
+
+/** Markdown link to a line in the file that contains the link. */
+function sourceLink(config: Config, link: LinkInfo): string {
+  return `[\`${link.filePath}\`](${repoBlobBase(config)}/${link.filePath}#L${link.line})`;
+}
+
+/** Markdown link to an external URL, shown as code. */
+function externalLink(url: string): string {
+  return `[\`${url}\`](${url})`;
+}
 
 // Maps file path -> set of line numbers visible in the PR diff (right/new side)
 type DiffLineMap = Map<string, Set<number>>;
@@ -67,7 +110,7 @@ function parseMarkers(body: string | null | undefined): { keys: string[]; legacy
   return { keys, legacyUrls };
 }
 
-function formatBrokenComment(result: CheckResult): string {
+function formatBrokenComment(result: CheckResult, config: Config): string {
   const { link, correctedUrl, isFuzzyMatch, statusCode } = result;
   const lines: string[] = [];
 
@@ -76,7 +119,7 @@ function formatBrokenComment(result: CheckResult): string {
       const qualifier = isFuzzyMatch ? ' as a close match' : ' elsewhere in the repository';
       lines.push(
         `The link points to \`${link.url}\`, but this file does not exist.`,
-        `\`${correctedUrl}\` was found${qualifier} — did you mean to link there?`
+        `${fileLink(config, link, correctedUrl)} was found${qualifier} — did you mean to link there?`
       );
     } else {
       lines.push(
@@ -91,7 +134,7 @@ function formatBrokenComment(result: CheckResult): string {
     );
     if (correctedUrl) {
       lines.push(
-        `This link points to the current repository. Use \`${correctedUrl}\` instead.`
+        `This link points to the current repository. Use ${fileLink(config, link, correctedUrl)} instead.`
       );
     }
   } else {
@@ -105,20 +148,20 @@ function formatBrokenComment(result: CheckResult): string {
   return lines.join('\n');
 }
 
-function formatImprovementComment(result: CheckResult): string {
+function formatImprovementComment(result: CheckResult, config: Config): string {
   const { link, correctedUrl } = result;
   if (link.type === 'external' && correctedUrl) {
     return [
-      `This link redirects to \`${correctedUrl}\`. Consider updating it to point directly to the final destination.`,
-      `Current: \`${link.url}\``,
+      `This link redirects to ${externalLink(correctedUrl)}. Consider updating it to point directly to the final destination.`,
+      `Current: ${externalLink(link.url)}`,
     ].join('\n');
   }
   if (link.type === 'same-org' && correctedUrl) {
-    return `This link points to the current repository. Use \`${correctedUrl}\` instead.`;
+    return `This link points to the current repository. Use ${fileLink(config, link, correctedUrl)} instead.`;
   }
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
-    `Current: \`${link.url}\``,
+    `Current: ${fileLink(config, link, link.url)}`,
   ].join('\n');
 }
 
@@ -126,7 +169,7 @@ function formatImprovementComment(result: CheckResult): string {
  * Merge multiple results on the same line into one review comment.
  * Produces a single suggestion block that applies all fixes at once.
  */
-export function mergeResultsForLine(group: CheckResult[]): { body: string; markers: string[] } {
+export function mergeResultsForLine(group: CheckResult[], config: Config): { body: string; markers: string[] } {
   const bodyParts: string[] = [];
   const markers: string[] = [];
 
@@ -139,9 +182,9 @@ export function mergeResultsForLine(group: CheckResult[]): { body: string; marke
     markers.push(makeMarker(result.link.filePath, result.link.line, result.link.url));
 
     if (!result.ok) {
-      bodyParts.push(formatBrokenComment(result));
+      bodyParts.push(formatBrokenComment(result, config));
     } else if (result.suggestionOnly) {
-      bodyParts.push(formatImprovementComment(result));
+      bodyParts.push(formatImprovementComment(result, config));
     }
 
     if (result.correctedUrl) {
@@ -267,7 +310,7 @@ async function reportPR(
 
   for (const group of grouped.values()) {
     const first = group[0];
-    const { body, markers } = mergeResultsForLine(group);
+    const { body, markers } = mergeResultsForLine(group, config);
     reviewComments.push({
       path: first.link.filePath,
       line: first.link.line,
@@ -316,7 +359,7 @@ async function reportPR(
 /**
  * Report via step summary and warning/notice annotations (non-PR context).
  */
-function reportSummary(results: CheckResult[]): void {
+function reportSummary(results: CheckResult[], config: Config): void {
   const broken = results.filter(r => !r.ok);
   const allImprovements = results.filter(r => r.ok && r.suggestionOnly);
   const redirectSuggestions = allImprovements.filter(r => r.link.type === 'external');
@@ -335,7 +378,7 @@ function reportSummary(results: CheckResult[]): void {
 
   if (broken.length > 0) {
     const rows = broken
-      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | ${r.link.type} | \`${r.link.url}\` | ${r.error ?? 'broken'} |`)
+      .map(r => `| ${sourceLink(config, r.link)} | ${r.link.line} | ${r.link.type} | \`${r.link.url}\` | ${r.error ?? 'broken'} |`)
       .join('\n');
     summary.push(
       '### Broken Links',
@@ -349,7 +392,7 @@ function reportSummary(results: CheckResult[]): void {
 
   if (redirectSuggestions.length > 0) {
     const rows = redirectSuggestions
-      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` | \`${r.correctedUrl}\` |`)
+      .map(r => `| ${sourceLink(config, r.link)} | ${r.link.line} | ${externalLink(r.link.url)} | ${externalLink(r.correctedUrl!)} |`)
       .join('\n');
     summary.push(
       '### Redirect Suggestions',
@@ -365,7 +408,7 @@ function reportSummary(results: CheckResult[]): void {
 
   if (rootRelativeSuggestions.length > 0) {
     const rows = rootRelativeSuggestions
-      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` |`)
+      .map(r => `| ${sourceLink(config, r.link)} | ${r.link.line} | ${fileLink(config, r.link, r.link.url)} |`)
       .join('\n');
     summary.push(
       '### Root-Relative Suggestions',
@@ -445,7 +488,7 @@ export async function report(results: CheckResult[], octokit: Octokit, config: C
 
     await reportPR(results, octokit, diffLines, commitSha, config);
   } else {
-    reportSummary(results);
+    reportSummary(results, config);
   }
 
   core.info(`Link check complete: ${results.length} checked, ${broken.length} broken`);

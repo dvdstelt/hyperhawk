@@ -418,7 +418,7 @@ async function runTests(repoRoot: string, testFile: string, baseUrl: string): Pr
   const mergeLines: string[] = [];
   for (const [key, group] of [...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
     if (group.length < 2) continue;
-    const { body } = mergeResultsForLine(group);
+    const { body } = mergeResultsForLine(group, config);
     // Extract just the suggestion block if present
     const suggestionMatch = /```suggestion\n(.*)\n```/s.exec(body);
     const suggestion = suggestionMatch ? suggestionMatch[1] : '(no suggestion)';
