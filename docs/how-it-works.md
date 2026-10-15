@@ -62,7 +62,17 @@ When a fix can be determined automatically, the comment includes a GitHub sugges
 
 ### Broken link suggestions
 
-When a broken internal link can be located elsewhere in the repo, HyperHawk suggests the correct path automatically. It first tries an exact filename match; if that fails, it falls back to fuzzy matching based on the filename stem. When multiple candidates exist, the one closest to the source file (fewest directory traversals) is preferred.
+When a broken internal link can be located elsewhere in the repo, HyperHawk suggests the correct path automatically.
+
+At the start of a run, HyperHawk builds a list of every URL the repository exposes: each file, and each markdown file with each of its headings. The broken link is matched against that list. Each candidate gets a score from three parts:
+
+1. **Folder.** The folder of the link and the folder of the candidate are compared segment by segment. A renamed segment (`Brand style guide` to `brand-style-guide`) costs little, a different segment (`rabbitmq` to `kafka`) costs almost a full segment, a missing parent folder costs half a segment. This part weighs most.
+2. **File name.** Similarity of the file names without extension. Only files with the same extension and a similar name are candidates.
+3. **Anchor.** Similarity of the heading in the link and the heading of the candidate. A file without that heading is still a candidate with a neutral anchor score, so a moved file whose heading was renamed is still found; the suggestion then has no anchor. Line anchors (`#L10`) address lines, not headings, and are kept as they are.
+
+Among candidates whose folders fit equally well, the one nearest to the source file wins. That selects the file in the same folder when the link has one `../` too many. When the best candidate still ties, no fix is suggested and the report lists the candidates.
+
+A suggestion is only made when the score is high enough, or when the file name exists exactly once in the repository (a moved file). Links into another repository therefore get no one-click fix. Every suggestion is a closest match, not a certainty, and the comment says so.
 
 ### Root-relative path suggestions
 

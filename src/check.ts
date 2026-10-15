@@ -86,8 +86,33 @@ async function followRedirects(
   throw new Error('Too many redirects');
 }
 
-// Lazily built index of every non-ignored file in the repo
-let repoFilesCache: string[] | null = null;
+// ---------------------------------------------------------------------------
+// Repository index: every non-ignored file, plus the heading anchors of every
+// markdown file. From it, the list of every URL the repository exposes: each
+// file, and each file with one of its anchors. Built once per run, on first
+// use.
+// ---------------------------------------------------------------------------
+
+interface IndexedFile {
+  abs: string;           // absolute path on disk
+  rel: string;           // repo-relative, forward slashes
+  dirSegments: string[]; // directory part of rel, split and lowercased
+  basename: string;      // file name with extension, original case
+  ext: string;           // extension, lowercased (".md")
+  stem: string;          // file name without extension, lowercased
+  anchors: string[];     // heading slugs; empty for non-markdown files
+}
+
+/** One URL the repository exposes: a file, or a file with one of its anchors. */
+interface IndexedUrl {
+  file: IndexedFile;
+  anchor: string; // heading slug, or "" for the file itself
+}
+
+let repoIndexCache: IndexedFile[] | null = null;
+let repoUrlsCache: IndexedUrl[] | null = null;
+
+const MARKDOWN_EXTENSIONS = new Set(['.md', '.markdown', '.mdx']);
 
 function collectFiles(dir: string, results: string[]): void {
   let entries: fs.Dirent[];
@@ -107,13 +132,133 @@ function collectFiles(dir: string, results: string[]): void {
   }
 }
 
-function getAllRepoFiles(repoRoot: string): string[] {
-  if (!repoFilesCache) {
-    repoFilesCache = [];
-    collectFiles(repoRoot, repoFilesCache);
-  }
-  return repoFilesCache;
+/**
+ * Convert heading text to the anchor slug GitHub generates for it:
+ * markup removed, lowercase, punctuation removed, spaces replaced by hyphens.
+ */
+function headingSlug(text: string): string {
+  return text
+    .replace(/<[^>]+>/g, '')                   // HTML tags: <code>foo</code>
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')      // images
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')   // inline links: keep the text
+    .replace(/\[([^\]]*)\]\[[^\]]*\]/g, '$1')  // reference links: keep the text
+    .replace(/[`*~]/g, '')                     // inline formatting
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s\-_]/gu, '')
+    .replace(/\s/g, '-');
 }
+
+/**
+ * Extract every anchor a markdown file exposes: ATX headings (# Title),
+ * Setext headings (Title over === or ---), both with GitHub's "-1", "-2"
+ * suffixes for duplicates, and explicit id="" / name="" attributes.
+ */
+function extractAnchors(content: string): string[] {
+  const anchors: string[] = [];
+  const seen = new Map<string, number>();
+  const addHeading = (text: string): void => {
+    const base = headingSlug(text);
+    if (!base) return;
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    anchors.push(count === 0 ? base : `${base}-${count}`);
+  };
+
+  let inFence = false;
+  let previous = ''; // previous line outside fences, for Setext headings
+
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trimEnd();
+    if (/^\s{0,3}(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      previous = '';
+      continue;
+    }
+    if (inFence) continue;
+
+    const atx = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/.exec(line);
+    if (atx) {
+      addHeading(atx[1]);
+      previous = '';
+      continue;
+    }
+
+    const isUnderline = /^\s{0,3}(=+|-+)\s*$/.test(line);
+    const previousIsText =
+      previous.trim() !== '' && !/^\s{0,3}([-*+]|\d+[.)])\s/.test(previous) && !/^\s{0,3}#/.test(previous);
+    if (isUnderline && previousIsText) {
+      addHeading(previous);
+      previous = '';
+      continue;
+    }
+
+    for (const attr of line.matchAll(/\b(?:id|name)="([^"]+)"/g)) {
+      anchors.push(attr[1].toLowerCase());
+    }
+    previous = line;
+  }
+
+  return anchors;
+}
+
+function getRepoIndex(repoRoot: string): IndexedFile[] {
+  if (!repoIndexCache) {
+    const files: string[] = [];
+    collectFiles(repoRoot, files);
+
+    repoIndexCache = files.map(abs => {
+      const ext = path.extname(abs).toLowerCase();
+      let anchors: string[] = [];
+      if (MARKDOWN_EXTENSIONS.has(ext)) {
+        try {
+          anchors = extractAnchors(fs.readFileSync(abs, 'utf8'));
+        } catch {
+          // unreadable file: index it without anchors
+        }
+      }
+      const rel = path.relative(repoRoot, abs).replace(/\\/g, '/');
+      return {
+        abs,
+        rel,
+        dirSegments: dirSegmentsOf(rel),
+        basename: path.basename(abs),
+        ext,
+        stem: path.basename(abs, path.extname(abs)).toLowerCase(),
+        anchors,
+      };
+    });
+  }
+  return repoIndexCache;
+}
+
+function getRepoUrls(repoRoot: string): IndexedUrl[] {
+  if (!repoUrlsCache) {
+    repoUrlsCache = getRepoIndex(repoRoot).flatMap(file => [
+      { file, anchor: '' },
+      ...file.anchors.map(anchor => ({ file, anchor })),
+    ]);
+  }
+  return repoUrlsCache;
+}
+
+/** Lowercased directory segments of a repo-relative path ("a/B/c.md" -> ["a", "b"]). */
+function dirSegmentsOf(rel: string): string[] {
+  const dir = path.posix.dirname(rel.replace(/\\/g, '/'));
+  return dir === '.' ? [] : dir.toLowerCase().split('/');
+}
+
+/** decodeURIComponent that returns the input unchanged when it is malformed ("#100%"). */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+// Anchors that address lines, not headings: #L10, #L10-L20, #L10C5-L12C8.
+const LINE_ANCHOR = /^L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?$/i;
 
 /**
  * Levenshtein distance between two strings (optimised rolling-array variant).
@@ -136,57 +281,169 @@ function levenshtein(a: string, b: string): number {
   return curr[n];
 }
 
-const FUZZY_THRESHOLD = 0.7;
+/** Similarity in [0, 1]: 1 means identical, 0 means nothing in common. */
+function similarity(a: string, b: string): number {
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) return 1;
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+// Cost of a directory segment that is added or removed, in segment edits.
+// A replaced segment costs 1 minus the similarity of the two names.
+const SEGMENT_GAP_COST = 0.5;
 
 /**
- * Return all files whose stem scores >= FUZZY_THRESHOLD against the target
- * stem, keeping only those that share the top score.
+ * Edit distance between two directory paths, counted in segments.
+ * "rabbitmq" -> "rabbit-mq" is nearly free; "rabbitmq" -> "kafka" costs
+ * almost a full segment; a missing parent folder costs SEGMENT_GAP_COST.
  */
-function fuzzyFindMatches(stem: string, ext: string, repoRoot: string): string[] {
-  const target = stem.toLowerCase();
-  const targetExt = ext.toLowerCase();
-  const allFiles = getAllRepoFiles(repoRoot);
-
-  let bestScore = 0;
-  const results: string[] = [];
-
-  for (const file of allFiles) {
-    const fileExt = path.extname(file).toLowerCase();
-    if (fileExt !== targetExt) continue;
-
-    const fileStem = path.basename(file, fileExt).toLowerCase();
-    const maxLen = Math.max(target.length, fileStem.length);
-    if (maxLen === 0) continue;
-
-    const score = 1 - levenshtein(target, fileStem) / maxLen;
-    if (score < FUZZY_THRESHOLD) continue;
-
-    if (score > bestScore) {
-      bestScore = score;
-      results.length = 0;
-      results.push(file);
-    } else if (score === bestScore) {
-      results.push(file);
+function segmentDistance(a: string[], b: string[]): number {
+  let prev = b.map((_, j) => (j + 1) * SEGMENT_GAP_COST);
+  prev.unshift(0);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = new Array<number>(b.length + 1);
+    curr[0] = i * SEGMENT_GAP_COST;
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] = Math.min(
+        prev[j] + SEGMENT_GAP_COST,
+        curr[j - 1] + SEGMENT_GAP_COST,
+        prev[j - 1] + (1 - similarity(a[i - 1], b[j - 1])),
+      );
     }
+    prev = curr;
   }
+  return prev[b.length];
+}
 
-  return results;
+// Minimum file-name similarity for a file to be a candidate at all.
+const FUZZY_THRESHOLD = 0.7;
+
+// Weights of the three parts of a candidate score. The folder weighs most:
+// a link to "Brand style guide/README.md" must prefer "brand-style-guide/"
+// over any other README.
+const WEIGHT_DIR = 0.5;
+const WEIGHT_NAME = 0.3;
+const WEIGHT_ANCHOR = 0.2;
+
+// Anchor score of a file without the anchor when the link has one. The file
+// is still a valid target: the heading may have been renamed or removed.
+const NO_ANCHOR_SCORE = 0.5;
+
+// Minimum score for a one-click suggestion. Below it, the best candidate is
+// probably in another repository or unrelated. The only exception is a file
+// name that exists exactly once in the repository: that is a moved file.
+const MIN_SUGGESTION_SCORE = 0.8;
+
+// Candidates whose folder is within this many segment edits of the best
+// folder are treated as equally placed. The one nearest to the source file
+// then wins: "../x.md" written for a file in the same folder.
+const DIR_MARGIN = 0.2;
+
+interface Candidate {
+  url: IndexedUrl;
+  dirEdits: number;
+  nameScore: number;
+  anchorScore: number;
+  total: number;
+  depth: number; // path segments between the source folder and the file
+}
+
+interface Replacement {
+  file?: IndexedFile;   // best candidate, undefined when none or ambiguous
+  anchor: string;       // anchor for the suggestion, with "#", or ""
+  ambiguous: string[];  // absolute paths of candidates that tie for first place
 }
 
 /**
- * Given multiple candidate paths, pick the one closest to sourceDir by
- * counting path segments in the relative path.  If two candidates are
- * equidistant, returns undefined (truly ambiguous).
+ * Find a replacement for a file that does not exist.
+ *
+ * The link (folder, file name and anchor) is matched against every URL the
+ * repository exposes. Each candidate is scored on three parts:
+ *   - folder: segment edit distance between the folders
+ *   - name: similarity of the file name stems
+ *   - anchor: similarity of the heading slugs; a file without the anchor
+ *     scores NO_ANCHOR_SCORE, so a renamed heading does not hide a moved file
+ * Line anchors (#L10) address lines, not headings. They are not matched and
+ * are kept on the suggestion as they are.
+ *
+ * Among candidates with an equally placed folder, the one nearest to the
+ * source file wins. An exact tie is ambiguous: no suggestion, and the tied
+ * files are returned so the report can list them.
+ *
+ * @param targetRel  repo-relative path the link resolves to (forward slashes)
+ * @param anchor     anchor from the link without "#", or "" when absent
  */
-function findClosest(candidates: string[], sourceDir: string): string | undefined {
-  if (candidates.length === 0) return undefined;
-  if (candidates.length === 1) return candidates[0];
+function findReplacement(
+  targetRel: string,
+  anchor: string,
+  sourceDir: string,
+  repoRoot: string,
+): Replacement {
+  const none: Replacement = { anchor: '', ambiguous: [] };
 
-  const ranked = candidates
-    .map(c => ({ file: c, depth: path.relative(sourceDir, c).split(path.sep).length }))
-    .sort((a, b) => a.depth - b.depth);
+  const rel = targetRel.replace(/\\/g, '/');
+  const basename = path.posix.basename(rel);
+  const ext = path.posix.extname(basename).toLowerCase();
+  const stem = path.posix.basename(basename, path.posix.extname(basename)).toLowerCase();
+  if (!stem) return none;
+  const dirSegments = dirSegmentsOf(rel);
 
-  return ranked[0].depth < ranked[1].depth ? ranked[0].file : undefined;
+  const decodedAnchor = safeDecode(anchor);
+  const lineAnchor = LINE_ANCHOR.test(decodedAnchor) ? decodedAnchor : '';
+  const heading = lineAnchor ? '' : decodedAnchor.toLowerCase().replace(/^user-content-/, '');
+
+  const index = getRepoIndex(repoRoot);
+  const exactNameCount = index.filter(f => f.basename === basename).length;
+
+  const candidates: Candidate[] = [];
+  for (const url of getRepoUrls(repoRoot)) {
+    const { file } = url;
+    if (file.ext !== ext) continue;
+    if (!heading && url.anchor) continue; // the link has no heading: only whole files
+    const nameScore = similarity(stem, file.stem);
+    if (nameScore < FUZZY_THRESHOLD) continue;
+
+    const dirEdits = segmentDistance(dirSegments, file.dirSegments);
+    const dirScore = 1 - dirEdits / Math.max(1, dirSegments.length, file.dirSegments.length);
+    const anchorScore = !heading ? 1 : url.anchor ? similarity(heading, url.anchor) : NO_ANCHOR_SCORE;
+    const total = WEIGHT_DIR * dirScore + WEIGHT_NAME * nameScore + WEIGHT_ANCHOR * anchorScore;
+    const depth = path.relative(sourceDir, file.abs).split(path.sep).length;
+    candidates.push({ url, dirEdits, nameScore, anchorScore, total, depth });
+  }
+  if (candidates.length === 0) return none;
+
+  candidates.sort((a, b) => b.total - a.total || a.depth - b.depth);
+  const best = candidates[0];
+
+  const uniqueExactName = best.url.file.basename === basename && exactNameCount === 1;
+  if (best.total < MIN_SUGGESTION_SCORE && !uniqueExactName) return none;
+
+  // Equally placed folders: the nearest file wins, then the higher score.
+  const close = candidates.filter(
+    c => c.dirEdits <= best.dirEdits + DIR_MARGIN && c.nameScore >= best.nameScore && c.anchorScore >= best.anchorScore,
+  );
+  const minDepth = Math.min(...close.map(c => c.depth));
+  const nearest = close.filter(c => c.depth === minDepth); // still sorted by total
+
+  if (nearest.length > 1 && nearest[0].total === nearest[1].total) {
+    const ties = nearest.filter(c => c.total === nearest[0].total).map(c => c.url.file.abs);
+    return { anchor: '', ambiguous: [...new Set(ties)] };
+  }
+
+  const chosen = nearest[0];
+  const suggestedAnchor = lineAnchor ? `#${lineAnchor}` : chosen.url.anchor ? `#${chosen.url.anchor}` : '';
+  return { file: chosen.url.file, anchor: suggestedAnchor, ambiguous: [] };
+}
+
+/**
+ * Error text for a missing file. Lists the tied candidates when the search
+ * found several files that fit equally well.
+ */
+function notFoundError(resolvedPath: string, replacement: Replacement, repoRoot: string): string {
+  const base = `File not found: ${resolvedPath}`;
+  if (replacement.ambiguous.length === 0) return base;
+  const list = replacement.ambiguous.map(abs => toRootRelative(abs, repoRoot)).join(', ');
+  return `${base}. Similar files found in several places: ${list}`;
 }
 
 /**
@@ -203,14 +460,13 @@ function toRootRelative(absPath: string, repoRoot: string): string {
  *   returns ok=true with a suggestionOnly suggestion to convert to root-relative.
  *
  * For broken links:
- *   1. tries exact filename match across the whole repo
- *   2. falls back to fuzzy stem match
- *   suggestions always use root-relative paths.
+ *   finds the closest URL in the repository (see findReplacement) and
+ *   suggests it as a root-relative path.
  */
 async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResult> {
   const url = link.url;
 
-  // Anchor-only links are valid (heading verification would need AST parsing)
+  // Same-file anchors (#section) are not verified.
   if (url.startsWith('#')) {
     return { link, ok: true };
   }
@@ -225,7 +481,7 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
 
   // Decode percent-encoded characters (e.g. %20 for spaces) so the path
   // matches the actual filename on disk.
-  const decodedPath = decodeURIComponent(urlWithoutAnchor);
+  const decodedPath = safeDecode(urlWithoutAnchor);
 
   const isRootRelative = decodedPath.startsWith('/');
 
@@ -263,47 +519,28 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
     return { link, ok: true };
   }
 
-  // --- Link is broken: search for the target file ---
+  // --- Link is broken: search for the closest URL in the repository ---
 
-  const filename = path.basename(decodedPath);
-  const stem = path.basename(decodedPath, path.extname(decodedPath));
-  const ext = path.extname(decodedPath);
-
-  let correctedAbs: string | undefined;
-  let isFuzzy = false;
-
-  // 1. Exact filename match - if multiple, pick the one closest to the source file
-  const allFiles = getAllRepoFiles(config.repoRoot);
-  const exactMatches = allFiles.filter(f => path.basename(f) === filename);
-
-  if (exactMatches.length >= 1) {
-    correctedAbs = findClosest(exactMatches, sourceDir);
-  }
-
-  // 2. Fuzzy stem match as fallback - same proximity tie-breaking applies
-  if (!correctedAbs && stem) {
-    const fuzzyMatches = fuzzyFindMatches(stem, ext, config.repoRoot);
-    correctedAbs = findClosest(fuzzyMatches, sourceDir);
-    if (correctedAbs) isFuzzy = true;
-  }
+  const anchor = hashIdx >= 0 ? url.slice(hashIdx + 1) : '';
+  const targetRel = path.relative(config.repoRoot, resolvedPath);
+  const replacement = findReplacement(targetRel, anchor, sourceDir, config.repoRoot);
 
   let suggestion: string | undefined;
   let correctedUrl: string | undefined;
-  if (correctedAbs) {
-    const anchor = hashIdx >= 0 ? url.slice(hashIdx) : '';
-    correctedUrl = toRootRelative(correctedAbs, config.repoRoot) + anchor;
-    const note = isFuzzy ? '  <!-- fuzzy match - please verify -->' : '';
+  if (replacement.file) {
+    correctedUrl = toRootRelative(replacement.file.abs, config.repoRoot) + replacement.anchor;
     // trimEnd() strips trailing \r on CRLF files, which would break GitHub's suggestion block
-    suggestion = link.lineContent.trimEnd().replace(url, correctedUrl) + note;
+    suggestion = link.lineContent.trimEnd().replace(url, correctedUrl) + '  <!-- closest match - please verify -->';
   }
 
   return {
     link,
     ok: false,
-    error: `File not found: ${resolvedPath}`,
+    error: notFoundError(resolvedPath, replacement, config.repoRoot),
     suggestion,
     correctedUrl,
-    isFuzzyMatch: isFuzzy && !!correctedAbs,
+    isFuzzyMatch: !!correctedUrl,
+    candidates: replacement.ambiguous.map(abs => toRootRelative(abs, config.repoRoot)),
   };
 }
 
@@ -405,45 +642,27 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   }
 
   if (!exists) {
-    // Try to find the correct file via exact filename or fuzzy stem match,
-    // same as checkInternal does for broken internal links.
-    const filename = path.basename(filePath);
-    const stem = path.basename(filePath, path.extname(filePath));
-    const ext = path.extname(filePath);
+    // Find the closest URL in the repository, same as checkInternal does
+    // for broken internal links.
+    const anchor = hashIndex !== -1 ? link.url.slice(hashIndex + 1) : '';
+    const replacement = findReplacement(filePath, anchor, sourceDir, config.repoRoot);
 
-    let correctedAbs: string | undefined;
-    let isFuzzy = false;
-
-    const allFiles = getAllRepoFiles(config.repoRoot);
-    const exactMatches = allFiles.filter(f => path.basename(f) === filename);
-    if (exactMatches.length >= 1) {
-      correctedAbs = findClosest(exactMatches, sourceDir);
-    }
-
-    if (!correctedAbs && stem) {
-      const fuzzyMatches = fuzzyFindMatches(stem, ext, config.repoRoot);
-      correctedAbs = findClosest(fuzzyMatches, sourceDir);
-      if (correctedAbs) isFuzzy = true;
-    }
-
-    if (correctedAbs) {
-      const correctedSameFolder = path.dirname(correctedAbs) === sourceDir;
-      localUrl = correctedSameFolder
-        ? path.basename(correctedAbs)
-        : toRootRelative(correctedAbs, config.repoRoot);
-      if (hashIndex !== -1) {
-        localUrl += link.url.substring(hashIndex);
-      }
+    if (replacement.file) {
+      const correctedSameFolder = path.dirname(replacement.file.abs) === sourceDir;
+      localUrl = (correctedSameFolder
+        ? path.basename(replacement.file.abs)
+        : toRootRelative(replacement.file.abs, config.repoRoot)) + replacement.anchor;
     }
 
     const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
     return {
       link,
       ok: false,
-      error: `File not found: ${resolvedPath}`,
+      error: notFoundError(resolvedPath, replacement, config.repoRoot),
       correctedUrl: localUrl,
       suggestion,
-      isFuzzyMatch: isFuzzy && !!correctedAbs,
+      isFuzzyMatch: !!replacement.file,
+      candidates: replacement.ambiguous.map(abs => toRootRelative(abs, config.repoRoot)),
     };
   }
 

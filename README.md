@@ -10,7 +10,7 @@
 - Checks **internal links** (relative and root-relative paths) by verifying the file exists on disk
 - Checks **same-org GitHub links** via the GitHub API, including file existence and blob/tree correctness
 - Checks **external HTTP/HTTPS links** with redirect following, timeout, and bot-detection avoidance
-- **Suggests fixes**: corrected paths for moved files (exact and fuzzy match), root-relative conversions, updated redirect targets, branch name updates, and blob/tree corrections
+- **Suggests fixes**: corrected paths for moved files (closest match on folder, file name and anchor), root-relative conversions, updated redirect targets, branch name updates, and blob/tree corrections
 - On **pull requests**: posts inline review comments with suggestion blocks you can apply in one click
 - On **push / schedule**: writes a summary table and emits warning annotations
 - Never fails the workflow unless you opt in to [strict mode](/docs/configuration.md#strict-mode)

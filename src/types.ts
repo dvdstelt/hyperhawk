@@ -16,7 +16,8 @@ export interface CheckResult {
   error?: string;
   suggestion?: string;       // replacement line content (for GitHub suggestion blocks)
   correctedUrl?: string;     // corrected URL alone, used in annotation messages and comment text
-  isFuzzyMatch?: boolean;    // true when correctedUrl came from fuzzy matching
+  isFuzzyMatch?: boolean;    // true when correctedUrl is the closest match, not the exact target
+  candidates?: string[];     // root-relative paths that tie as the best match (no single suggestion)
   suggestionOnly?: boolean;  // true when link is valid but a root-relative conversion is suggested
 }
 

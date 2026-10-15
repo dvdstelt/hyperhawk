@@ -36,13 +36,13 @@ tests/test-document.md:1017 | <server>/tracked-move#my-anchor | suggestion -> <s
 tests/test-document.md:11 | ../release.ps | broken | File not found: <root>/release.ps
 tests/test-document.md:13 | ../tsconfig.jso | broken | File not found: <root>/tsconfig.jso
 tests/test-document.md:15 | ../action.ym | broken | File not found: <root>/action.ym
-tests/test-document.md:19 | ../READM.md#troubleshooting | broken -> /README.md#troubleshooting (fuzzy)
+tests/test-document.md:19 | ../READM.md#troubleshooting | broken -> /README.md (fuzzy)
 tests/test-document.md:23 | ../docs/setup-guide.md | broken | File not found: <root>/docs/setup-guide.md
 tests/test-document.md:25 | ../../faq/common-issues.md | broken | File not found: <parent>/faq/common-issues.md
 tests/test-document.md:27 | ../CONTRIBUTING.md | broken | File not found: <root>/CONTRIBUTING.md
 tests/test-document.md:31 | ../LICENS.md | broken | File not found: <root>/LICENS.md
 tests/test-document.md:31 | ../READM.md | broken -> /README.md (fuzzy)
-tests/test-document.md:35 | ./configuration.md | broken -> /docs/configuration.md
+tests/test-document.md:35 | ./configuration.md | broken -> /docs/configuration.md (fuzzy)
 tests/test-document.md:37 | ./placeholder.md | ok
 tests/test-document.md:41 | ../AGENTS.md | suggestion
 tests/test-document.md:43 | ../action.yml | suggestion
@@ -52,16 +52,21 @@ tests/test-document.md:59 | https://github.com/dvdstelt/hyperhawk/blob/main/test
 tests/test-document.md:61 | https://github.com/dvdstelt/hyperhawk/blob/main/does-not-exist.md | broken -> /does-not-exist.md
 tests/test-document.md:63 | https://github.com/dvdstelt/hyperhawk/blob/main/docs/configuraton.md | broken -> /docs/configuration.md (fuzzy)
 tests/test-document.md:7 | ../READM.md | broken -> /README.md (fuzzy)
-tests/test-document.md:82 | ../READM.md | broken -> /README.md (fuzzy)
+tests/test-document.md:75 | /tests/Brand%20style%20guide/README.md#email | broken -> /tests/brand-style-guide/README.md#email (fuzzy)
+tests/test-document.md:77 | /tests/style%20guide/README.md#email | broken -> /tests/style-guide-v2/README.md#email (fuzzy)
+tests/test-document.md:79 | /tests/style%20guide/README.md | broken | File not found: <root>/tests/style guide/README.md. Similar files found in several places: /tests/style-guide-v1/README.md, /tests/style-guide-v2/README.md
+tests/test-document.md:81 | /tests/transports/rabbitmq/readme.md#configuration | broken -> /tests/transports/rabbit-mq/readme.md (fuzzy)
+tests/test-document.md:83 | ../src/chek.ts#L10 | broken -> /src/check.ts#L10 (fuzzy)
 tests/test-document.md:9 | ../LICENS.md | broken | File not found: <root>/LICENS.md
+tests/test-document.md:94 | ../READM.md | broken -> /README.md (fuzzy)
 merge:tests/test-document.md:31 | ../READM.md + ../LICENS.md | Read the [README](/README.md) and the [license](../LICENS.md) before starting.
 extract:67 | https://en.wikipedia.org/wiki/.NET_Framework_(software)
 extract:71 | https://github.com/dvdstelt
 ::debug::[same-org] Checking https://github.com/dvdstelt/hyperhawk/blob/main/README.md
 ::debug::[same-org] URL points to current repo, suggesting local path: https://github.com/dvdstelt/hyperhawk/blob/main/README.md
 .github/ISSUE_TEMPLATE/bug_report.md:13 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion
-.github/ISSUE_TEMPLATE/bug_report.md:15 | ../docs/configuration.md | broken -> /docs/configuration.md
-codeblock:tests/test-document.md:82 | ../READM.md
+.github/ISSUE_TEMPLATE/bug_report.md:15 | ../docs/configuration.md | broken -> /docs/configuration.md (fuzzy)
+codeblock:tests/test-document.md:94 | ../READM.md
 reloff:11 | ../release.ps | ok
 reloff:13 | ../tsconfig.jso | ok
 reloff:15 | ../action.ym | ok
@@ -77,8 +82,13 @@ reloff:41 | ../AGENTS.md | ok
 reloff:43 | ../action.yml | ok
 reloff:47 | ./file%20with%20spaces.md | ok
 reloff:7 | ../READM.md | ok
-reloff:82 | ../READM.md | ok
+reloff:75 | /tests/Brand%20style%20guide/README.md#email | broken
+reloff:77 | /tests/style%20guide/README.md#email | broken
+reloff:79 | /tests/style%20guide/README.md | broken
+reloff:81 | /tests/transports/rabbitmq/readme.md#configuration | broken
+reloff:83 | ../src/chek.ts#L10 | ok
 reloff:9 | ../LICENS.md | ok
+reloff:94 | ../READM.md | ok
 reldepth1:11 | ../release.ps | broken
 reldepth1:13 | ../tsconfig.jso | broken
 reldepth1:15 | ../action.ym | broken
@@ -94,5 +104,12 @@ reldepth1:41 | ../AGENTS.md | ok
 reldepth1:43 | ../action.yml | ok
 reldepth1:47 | ./file%20with%20spaces.md | ok
 reldepth1:7 | ../READM.md | broken
-reldepth1:82 | ../READM.md | broken
+reldepth1:75 | /tests/Brand%20style%20guide/README.md#email | broken
+reldepth1:77 | /tests/style%20guide/README.md#email | broken
+reldepth1:79 | /tests/style%20guide/README.md | broken
+reldepth1:81 | /tests/transports/rabbitmq/readme.md#configuration | broken
+reldepth1:83 | ../src/chek.ts#L10 | broken
 reldepth1:9 | ../LICENS.md | broken
+reldepth1:94 | ../READM.md | broken
+fixture:tests/long-path/docs/platform/nservicebus/messaging/transports/kafka/readme.md:5 | ../rabbitmq/readme.md | broken -> /tests/long-path/docs/platform/nservicebus/messaging/transports/rabbit-mq/readme.md
+fixture:tests/proximity/ndc-porto/ndc-porto.md:5 | ../booth-retrospective.md | broken -> /tests/proximity/ndc-porto/booth-retrospective.md

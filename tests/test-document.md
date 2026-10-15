@@ -70,6 +70,18 @@ Learn about [.NET](https://en.wikipedia.org/wiki/.NET_Framework_(software)) on W
 
 Thanks to [@dvdstelt](https://github.com/dvdstelt) for the contribution.
 
+## Path-aware Matching (folder and anchor take part)
+
+The [brand guide email rules](/tests/Brand%20style%20guide/README.md#email) spell the folder differently.
+
+The [style guide email rules](/tests/style%20guide/README.md#email) exist in one of two similar folders; only one has the heading.
+
+The [style guide](/tests/style%20guide/README.md) is ambiguous without an anchor.
+
+The [transport configuration](/tests/transports/rabbitmq/readme.md#configuration) heading was renamed, so the anchor is dropped.
+
+The [line anchor](../src/chek.ts#L10) addresses a line, not a heading, and is kept.
+
 ## Links Inside Code Blocks (should be skipped when skip-code-blocks is enabled)
 
 ```yaml
