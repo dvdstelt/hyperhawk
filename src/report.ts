@@ -68,15 +68,31 @@ function parseMarkers(body: string | null | undefined): { keys: string[]; legacy
 }
 
 function formatBrokenComment(result: CheckResult): string {
-  const { link, correctedUrl, isFuzzyMatch, statusCode } = result;
+  const { link, correctedUrl, statusCode } = result;
   const lines: string[] = [];
 
-  if (link.type === 'internal') {
+  if (result.anchorMissing) {
+    lines.push(
+      link.url.startsWith('#')
+        ? `This file has no heading for the anchor \`${link.url}\`.`
+        : `The file exists, but it has no heading for the anchor in \`${link.url}\`.`
+    );
+    lines.push(
+      correctedUrl
+        ? `\`${correctedUrl}\` is the closest heading — please verify that this is the intended target.`
+        : 'Update the anchor or remove it from the link.'
+    );
+  } else if (link.type === 'internal') {
     if (correctedUrl) {
-      const qualifier = isFuzzyMatch ? ' as a close match' : ' elsewhere in the repository';
       lines.push(
         `The link points to \`${link.url}\`, but this file does not exist.`,
-        `\`${correctedUrl}\` was found${qualifier} — did you mean to link there?`
+        `\`${correctedUrl}\` is the closest match — please verify that this is the intended target.`
+      );
+    } else if (result.candidates && result.candidates.length > 0) {
+      lines.push(
+        `The link points to \`${link.url}\`, but this file does not exist.`,
+        'Several files fit equally well, so no fix is suggested. Pick the correct one:',
+        ...result.candidates.map(c => `- \`${c}\``)
       );
     } else {
       lines.push(
@@ -300,7 +316,9 @@ async function reportPR(
     for (const result of notInDiff) {
       const hint = result.correctedUrl
         ? ` Did you mean \`${result.correctedUrl}\`${result.isFuzzyMatch ? ' (fuzzy match)' : ''}?`
-        : '';
+        : result.candidates && result.candidates.length > 0
+          ? ` Several files fit: ${result.candidates.map(c => `\`${c}\``).join(', ')}`
+          : '';
       core.warning(
         `Broken ${result.link.type} link: \`${result.link.url}\`${hint}`,
         {
@@ -449,5 +467,7 @@ export async function report(results: CheckResult[], octokit: Octokit, config: C
   }
 
   core.info(`Link check complete: ${results.length} checked, ${broken.length} broken`);
-  return broken.length;
+  // A missing heading in an existing file is reported, but it does not fail
+  // the workflow in strict mode.
+  return broken.filter(r => !r.anchorMissing).length;
 }

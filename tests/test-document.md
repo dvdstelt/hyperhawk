@@ -70,6 +70,30 @@ Learn about [.NET](https://en.wikipedia.org/wiki/.NET_Framework_(software)) on W
 
 Thanks to [@dvdstelt](https://github.com/dvdstelt) for the contribution.
 
+## Path-aware Matching (folder and anchor take part)
+
+The [brand guide email rules](/tests/Brand%20style%20guide/README.md#email) spell the folder differently.
+
+The [style guide email rules](/tests/style%20guide/README.md#email) exist in one of two similar folders; only one has the heading.
+
+The [style guide](/tests/style%20guide/README.md) is ambiguous without an anchor.
+
+The [transport configuration](/tests/transports/rabbitmq/readme.md#configuration) heading was renamed, so the anchor is dropped.
+
+The [line anchor](../src/chek.ts#L10) addresses a line, not a heading, and is kept.
+
+## Anchors in Existing Files
+
+The [placeholder heading](./placeholder.md#missing-section) does not exist in that file.
+
+The [README quickstart](../README.md#quickstrat) has a typo in the anchor.
+
+The [same-file heading](#fuzzy-matches-typos-in-filename) exists in this file.
+
+The [same-file typo](#fuzzy-matches-typo-in-filename) is close to an existing heading.
+
+The [line anchor on a markdown file](../README.md#L5) is not verified.
+
 ## Links Inside Code Blocks (should be skipped when skip-code-blocks is enabled)
 
 ```yaml

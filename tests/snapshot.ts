@@ -195,6 +195,7 @@ async function runIssueTemplateTest(repoRoot: string, testFile: string): Promise
     checkExternal: false,
     checkSameOrg: true,
     checkRelative: true,
+    checkAnchors: true,
     relativeSuggestionDepth: 0,
     ignorePatterns: [],
     timeout: 5000,
@@ -245,6 +246,7 @@ async function runCodeBlockTest(repoRoot: string, testFile: string): Promise<voi
     checkExternal: false,
     checkSameOrg: false,
     checkRelative: true,
+    checkAnchors: true,
     relativeSuggestionDepth: 0,
     ignorePatterns: [],
     timeout: 5000,
@@ -255,8 +257,8 @@ async function runCodeBlockTest(repoRoot: string, testFile: string): Promise<voi
   };
 
   const allLinks = extractLinks(testFile, config);
-  // Only look at links from the code block test section (lines 74+)
-  const codeBlockLinks = allLinks.filter(l => l.line >= 74);
+  // Only look at links from the code block test section (lines 96+)
+  const codeBlockLinks = allLinks.filter(l => l.line >= 96);
 
   const lines = codeBlockLinks
     .map(l => {
@@ -285,6 +287,7 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
     checkExternal: false,
     checkSameOrg: false,
     checkRelative: true,
+    checkAnchors: true,
     relativeSuggestionDepth: 0,
     ignorePatterns: [],
     timeout: 5000,
@@ -309,8 +312,53 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
 
   // Relative checking disabled: every relative link is skipped (ok).
   await summarize('reloff', { ...base, checkRelative: false });
+  // Anchor checking disabled: links to existing files with a missing heading are ok.
+  await summarize('anchorsoff', { ...base, checkAnchors: false });
   // Depth 1: same-folder and one-level links are exempt from suggestions.
   await summarize('reldepth1', { ...base, relativeSuggestionDepth: 1 });
+}
+
+/**
+ * Fixture files whose own location matters for the match: a link from a
+ * long path (the folder decides, not the distance to the source) and a
+ * link with "../" written for a file in the same folder (the distance
+ * decides between equally placed folders).
+ */
+async function runFixtureFilesTest(repoRoot: string): Promise<void> {
+  const fixtures = [
+    'tests/long-path/docs/platform/nservicebus/messaging/transports/kafka/readme.md',
+    'tests/proximity/ndc-porto/ndc-porto.md',
+  ];
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'dvdstelt',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: false,
+    checkRelative: true,
+    checkAnchors: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: fixtures,
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+  };
+
+  const links = fixtures.flatMap(f => extractLinks(path.join(repoRoot, f), config)).filter(l => l.type === 'internal');
+  const results = await checkLinks(links, config, null as any);
+  const lines = results
+    .map(r => {
+      const rel = path.relative(repoRoot, r.link.filePath).replace(/\\/g, '/');
+      const status = r.ok ? 'ok' : 'broken';
+      const detail = r.correctedUrl ? ` -> ${r.correctedUrl}` : '';
+      return `fixture:${rel}:${r.link.line} | ${r.link.url} | ${status}${detail}`;
+    })
+    .sort();
+  process.stdout.write(lines.join('\n') + '\n');
 }
 
 async function main(): Promise<void> {
@@ -325,6 +373,7 @@ async function main(): Promise<void> {
     await runIssueTemplateTest(repoRoot, issueTemplateFile);
     await runCodeBlockTest(repoRoot, testFile);
     await runRelativeControlsTest(repoRoot, testFile);
+    await runFixtureFilesTest(repoRoot);
   } finally {
     await closeServer();
   }
@@ -360,6 +409,7 @@ async function runTests(repoRoot: string, testFile: string, baseUrl: string): Pr
     checkExternal: true,
     checkSameOrg: true,
     checkRelative: true,
+    checkAnchors: true,
     relativeSuggestionDepth: 0,
     ignorePatterns: [],
     timeout: 5000,

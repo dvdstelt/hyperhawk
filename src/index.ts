@@ -75,6 +75,7 @@ async function run(): Promise<void> {
     const checkExternal = core.getInput('check-external') !== 'false';
     const checkSameOrg = core.getInput('check-same-org') !== 'false';
     const checkRelative = core.getInput('check-relative') !== 'false';
+    const checkAnchors = core.getInput('check-anchors') !== 'false';
     const relativeSuggestionDepth = parseRelativeSuggestionDepth(core.getInput('relative-suggestion-depth'));
     const ignorePatternsInput = core.getInput('ignore-patterns');
     const timeout = parseInt(core.getInput('timeout') || '10000', 10);
@@ -104,6 +105,7 @@ async function run(): Promise<void> {
       checkExternal,
       checkSameOrg,
       checkRelative,
+      checkAnchors,
       relativeSuggestionDepth,
       ignorePatterns,
       timeout,

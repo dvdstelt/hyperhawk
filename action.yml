@@ -25,6 +25,12 @@ inputs:
       Root-relative links (/x.md) are always checked.
     required: false
     default: 'true'
+  check-anchors:
+    description: >
+      Whether to verify that the heading in a link anchor exists
+      (guide.md#section, #section). Line anchors (#L10) are not verified.
+    required: false
+    default: 'true'
   relative-suggestion-depth:
     description: >
       Relative links that traverse this many directory levels or fewer are not

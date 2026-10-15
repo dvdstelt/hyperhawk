@@ -28,6 +28,8 @@ Go to **Settings > Secrets and variables > Actions** and create a secret named `
 
 This way you can enable strict mode for specific repositories without changing the workflow file. Repositories without the secret continue to run in non-strict mode.
 
+Strict mode fails on links to files that do not exist. A link to a file that exists but has no heading for the anchor (see [Anchor checking](#anchor-checking)) is reported as broken, but it does not fail the workflow.
+
 ## Ignore patterns
 
 The `ignore-patterns` input accepts a comma-separated list of JavaScript regular expressions. Any link URL that matches at least one pattern is skipped.
@@ -95,6 +97,19 @@ Links at or below the configured depth are left as-is; deeper links still get a 
 ```
 
 This only suppresses the conversion suggestion; genuinely broken relative links are still reported regardless of depth. The maximum is `5`. If you want to suppress suggestions for links deeper than that, disable relative checking with `check-relative: false` instead.
+
+## Anchor checking
+
+By default, HyperHawk verifies that the heading in a link anchor exists: `guide.md#section`, `#section` in the same file, and same-repository GitHub URLs with an anchor. A missing heading is reported as a broken link. When the file has a similar heading, the comment suggests it. Line anchors (`#L10`, `#L10-L20`) and anchors on files that are not markdown are not verified. A missing heading never fails the workflow, also in strict mode.
+
+Set `check-anchors: false` to skip anchor verification:
+
+```yaml
+- uses: dvdstelt/hyperhawk@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    check-anchors: false
+```
 
 ## Skip code blocks
 

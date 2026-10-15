@@ -16,7 +16,9 @@ export interface CheckResult {
   error?: string;
   suggestion?: string;       // replacement line content (for GitHub suggestion blocks)
   correctedUrl?: string;     // corrected URL alone, used in annotation messages and comment text
-  isFuzzyMatch?: boolean;    // true when correctedUrl came from fuzzy matching
+  isFuzzyMatch?: boolean;    // true when correctedUrl is the closest match, not the exact target
+  candidates?: string[];     // root-relative paths that tie as the best match (no single suggestion)
+  anchorMissing?: boolean;   // true when the file exists but the heading in the anchor does not (does not fail strict mode)
   suggestionOnly?: boolean;  // true when link is valid but a root-relative conversion is suggested
 }
 
@@ -29,6 +31,7 @@ export interface Config {
   checkExternal: boolean;
   checkSameOrg: boolean;
   checkRelative: boolean;
+  checkAnchors: boolean;
   relativeSuggestionDepth: number;
   ignorePatterns: RegExp[];
   timeout: number;
