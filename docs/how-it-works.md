@@ -44,6 +44,7 @@ Same-org links are verified through the GitHub REST API:
 
 - **Repository existence** is verified via an authenticated API call. If the repo returns 404, HyperHawk makes an unauthenticated request to distinguish private repos (silently skipped) from truly non-existent ones (reported as broken).
 - **File/directory existence** is verified via the `getContent` API when the URL includes a path (e.g. `/blob/main/docs/guide.md`).
+- **Branch names with slashes**: a URL like `/blob/release/1.0/docs/guide.md` doesn't say where the branch name ends, so when the file isn't found HyperHawk retries with longer branch names (`release/1.0` and path `docs/guide.md`, and so on, up to five segments).
 - **Default branch detection**: when a file is not found at the ref specified in the URL (e.g. `master`) but exists on the repo's current default branch (e.g. `main`), HyperHawk suggests updating the branch name.
 - **Blob/tree mismatch**: GitHub uses `/blob/` for files and `/tree/` for directories. When a cross-repo link uses the wrong prefix, HyperHawk suggests correcting it.
 - **Org-level URLs** (e.g. `/orgs/owner/projects/123`) are trusted without further verification.

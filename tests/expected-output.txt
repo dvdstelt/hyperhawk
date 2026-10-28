@@ -96,3 +96,12 @@ reldepth1:47 | ./file%20with%20spaces.md | ok
 reldepth1:7 | ../READM.md | broken
 reldepth1:82 | ../READM.md | broken
 reldepth1:9 | ../LICENS.md | broken
+refpath:main/docs/guide.md | main | docs/guide.md
+refpath:main/docs/guide.md | main/docs | guide.md
+refpath:2016/CloudConf2016/soa.pptx | 2016 | CloudConf2016/soa.pptx
+refpath:2016/CloudConf2016/soa.pptx | 2016/CloudConf2016 | soa.pptx
+refpath:a/b/c/d/e/f/g/file.md | a | b/c/d/e/f/g/file.md
+refpath:a/b/c/d/e/f/g/file.md | a/b | c/d/e/f/g/file.md
+refpath:a/b/c/d/e/f/g/file.md | a/b/c | d/e/f/g/file.md
+refpath:a/b/c/d/e/f/g/file.md | a/b/c/d | e/f/g/file.md
+refpath:a/b/c/d/e/f/g/file.md | a/b/c/d/e | f/g/file.md

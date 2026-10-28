@@ -460,6 +460,29 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
 /**
  * Check a same-org GitHub link via the GitHub API.
  */
+// Upper bound on the number of slash-separated segments tried as a ref.
+const MAX_REF_SEGMENTS = 5;
+
+/**
+ * Split the segments after /blob/ or /tree/ into a ref and a file path.
+ *
+ * Branch names can contain slashes (e.g. release/1.0), so a URL like
+ * /blob/release/1.0/docs/guide.md is ambiguous: the URL alone doesn't say
+ * where the ref ends. GitHub resolves it against the refs that exist; here
+ * every split is returned, shortest ref first, so callers can try each one.
+ * The first candidate is the common case of a ref without slashes.
+ */
+export function refPathCandidates(segments: string[]): { ref: string; filePath: string }[] {
+  const candidates: { ref: string; filePath: string }[] = [];
+  for (let i = 1; i < segments.length && candidates.length < MAX_REF_SEGMENTS; i++) {
+    candidates.push({
+      ref: segments.slice(0, i).join('/'),
+      filePath: segments.slice(i).join('/'),
+    });
+  }
+  return candidates;
+}
+
 async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): Promise<CheckResult> {
   const cached = resultCache.get(link.url);
   if (cached) {
@@ -536,20 +559,34 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
     // If URL has a file/directory path (/blob/<ref>/<path> or /tree/<ref>/<path>), check it
     // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts]
     if (parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree')) {
-      const ref = parts[3];
-      const filePath = parts.slice(4).join('/');
+      const candidates = refPathCandidates(parts.slice(3));
+      let { ref, filePath } = candidates[0];
 
       const urlKind = parts[2] as 'blob' | 'tree';
       core.debug(`[same-org] Verifying ${urlKind} ${filePath} at ref ${ref} in ${repoOwner}/${repoName}`);
 
       try {
-        const content = await octokit.rest.repos.getContent({
-          owner: repoOwner,
-          repo: repoName,
-          path: filePath,
-          ref,
-        });
-        core.debug(`[same-org] File ${filePath} found in ${repoOwner}/${repoName}`);
+        let content: Awaited<ReturnType<typeof octokit.rest.repos.getContent>> | undefined;
+        let firstError: unknown;
+        for (const candidate of candidates) {
+          try {
+            content = await octokit.rest.repos.getContent({
+              owner: repoOwner,
+              repo: repoName,
+              path: candidate.filePath,
+              ref: candidate.ref,
+            });
+            ({ ref, filePath } = candidate);
+            break;
+          } catch (err: unknown) {
+            firstError ??= err;
+            // Only a 404 can mean the ref contains a slash; anything else is a real error.
+            if (getStatusCode(err) !== 404) throw err;
+            core.debug(`[same-org] ${candidate.filePath} not found at ref ${candidate.ref}`);
+          }
+        }
+        if (!content) throw firstError;
+        core.debug(`[same-org] File ${filePath} found at ref ${ref} in ${repoOwner}/${repoName}`);
 
         // Suggest fixing blob/tree mismatch: /blob/ is for files, /tree/ is for directories.
         const isArray = Array.isArray(content.data);

@@ -12,7 +12,7 @@
 import * as http from 'http';
 import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
-import { checkLinks } from '../src/check';
+import { checkLinks, refPathCandidates } from '../src/check';
 import { Config, CheckResult, LinkInfo } from '../src/types';
 import { mergeResultsForLine } from '../src/report';
 
@@ -313,6 +313,23 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
   await summarize('reldepth1', { ...base, relativeSuggestionDepth: 1 });
 }
 
+/**
+ * Verify how same-org /blob/ and /tree/ URLs are split into a ref and a path.
+ * Branch names can contain slashes, so every split is a candidate, shortest
+ * ref first.
+ */
+function runRefPathCandidatesTest(): void {
+  const samples = [
+    'main/docs/guide.md',
+    '2016/CloudConf2016/soa.pptx',
+    'a/b/c/d/e/f/g/file.md',
+  ];
+  const lines = samples.flatMap(s =>
+    refPathCandidates(s.split('/')).map(c => `refpath:${s} | ${c.ref} | ${c.filePath}`)
+  );
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -325,6 +342,7 @@ async function main(): Promise<void> {
     await runIssueTemplateTest(repoRoot, issueTemplateFile);
     await runCodeBlockTest(repoRoot, testFile);
     await runRelativeControlsTest(repoRoot, testFile);
+    runRefPathCandidatesTest();
   } finally {
     await closeServer();
   }
