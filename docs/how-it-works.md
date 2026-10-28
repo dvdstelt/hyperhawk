@@ -4,7 +4,7 @@
 
 | URL pattern | Classified as | How it is checked |
 |-------------|--------------|-------------------|
-| No scheme, starts with `.`, `/`, or `#` | Internal | File existence on disk |
+| No scheme, starts with `.`, `/`, or `#` | Internal | File existence on disk, or a generated page with [`site-generator`](/docs/configuration.md#static-site-generators) |
 | `https://github.com/<same-owner>/...` | Same-org | GitHub REST API |
 | `https://github.com/user-attachments/assets/...` | External | Skipped (always valid) |
 | Everything else | External | HTTP HEAD request, falling back to GET if HEAD returns any 4xx or 5xx |

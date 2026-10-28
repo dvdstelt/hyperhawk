@@ -1,0 +1,12 @@
+baseurl: /blog
+permalink: /:categories/:year/:month/:day/:title:output_ext
+collections:
+  talks:
+    output: true
+  recipes:
+    output: true
+    permalink: /cookbook/:name/
+  notes:
+    output: false
+exclude:
+  - excluded

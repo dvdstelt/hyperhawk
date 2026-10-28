@@ -121,3 +121,38 @@ By default, broken links found on unchanged lines in a PR produce check warning 
 ```
 
 This is useful for incremental adoption: you get feedback only on lines in the diff, without noise from pre-existing broken links elsewhere in the file.
+
+## Static site generators
+
+Sites built by a static site generator often link to pages that don't exist as files in the repository. In a Jekyll blog, `_posts/2024-01-15-hello-world.md` is published as `/2024/01/15/hello-world.html`, so a link to that URL is reported as broken because no such file exists on disk.
+
+Set `site-generator` to `jekyll` to verify root-relative links against the pages Jekyll generates:
+
+```yaml
+- uses: dvdstelt/hyperhawk@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    site-generator: jekyll
+```
+
+When a root-relative link doesn't match a file on disk, HyperHawk computes the site's URLs from its sources and accepts the link if Jekyll would generate it:
+
+- **Posts** in `_posts/` (including category folders such as `travel/_posts/`), using the `permalink` from `_config.yml` (built-in styles like `date` and `pretty`, or a custom pattern), front matter `permalink`, and `category`/`categories`
+- **Pages**, including `index` pages served at their folder URL (`/docs/`)
+- **Collections** with `output: true`, honoring the collection's `permalink`
+- **Redirects** declared with `redirect_from` ([jekyll-redirect-from](https://github.com/jekyll/jekyll-redirect-from))
+- The site's `baseurl`, if links include it
+
+Links are matched the way GitHub Pages serves files: `/about`, `/about.html`, and `/about/` (for `about/index.html`) are all accepted when the page exists. Drafts, posts with `published: false`, collections without `output: true`, and paths listed in `exclude` are not generated, so links to them are still reported as broken.
+
+Pages created by plugins at build time, such as pagination or tag archives, aren't known to HyperHawk. Use `ignore-patterns` for those.
+
+If the site sources aren't at the repository root, for example when GitHub Pages publishes from the `docs` folder, set `site-root`:
+
+```yaml
+- uses: dvdstelt/hyperhawk@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    site-generator: jekyll
+    site-root: docs
+```

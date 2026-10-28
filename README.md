@@ -83,3 +83,5 @@ Need to check links into **private repositories** in the same org? See [Cross-re
 | `timeout` | no | `10000` | Timeout in milliseconds for each external link request. |
 | `concurrency` | no | `5` | Number of links checked in parallel. |
 | `strict` | no | `false` | Fail the workflow when broken links are found. |
+| `site-generator` | no | `none` | Static site generator that builds the repo (`none` or `jekyll`). With `jekyll`, root-relative links to generated pages (posts, collections, permalinks, redirects) are verified. See [static site generators](/docs/configuration.md#static-site-generators). |
+| `site-root` | no | `.` | Folder containing the site sources, e.g. `docs`. Only used with `site-generator`. |

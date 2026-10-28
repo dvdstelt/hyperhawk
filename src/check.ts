@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as core from '@actions/core';
 import { getOctokit } from '@actions/github';
 import { LinkInfo, CheckResult, Config } from './types';
+import { JekyllSite, loadJekyllSite } from './jekyll';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
@@ -105,6 +106,16 @@ function collectFiles(dir: string, results: string[]): void {
       results.push(fullPath);
     }
   }
+}
+
+// Lazily built route table for Jekyll sites
+let jekyllSiteCache: JekyllSite | null = null;
+
+function getJekyllSite(siteRoot: string): JekyllSite {
+  if (!jekyllSiteCache) {
+    jekyllSiteCache = loadJekyllSite(siteRoot);
+  }
+  return jekyllSiteCache;
 }
 
 function getAllRepoFiles(repoRoot: string): string[] {
@@ -260,6 +271,12 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
         return { link, ok: true, suggestion, suggestionOnly: true };
       }
     }
+    return { link, ok: true };
+  }
+
+  // Root-relative links in a Jekyll site may point to pages generated at
+  // build time (posts, collections, redirects) rather than files on disk.
+  if (isRootRelative && config.siteGenerator === 'jekyll' && getJekyllSite(config.siteRoot).hasRoute(decodedPath)) {
     return { link, ok: true };
   }
 
