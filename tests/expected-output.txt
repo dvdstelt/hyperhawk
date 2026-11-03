@@ -123,3 +123,4 @@ sameorg:ref lookup fails, file on default branch | /blob/master/docs/guide.md | 
 sameorg:ref lookup fails, file missing | /blob/feature/x/docs/guide.md | broken | API error looking up refs: Error: HTTP 500 | content feature|x/docs/guide.md, refs heads/feature/, refs tags/feature/, content main|x/docs/guide.md
 sameorg:branch root | /tree/release/1.0 | ok | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:branch root as blob | /blob/release/1.0 | suggestion -> /tree/release/1.0 | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
+sameorg:self-repo slash ref | /blob/release/1.0/README.md | suggestion -> /README.md | (no API calls)

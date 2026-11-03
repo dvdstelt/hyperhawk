@@ -378,7 +378,7 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   if (isIssueTemplate(link.filePath)) {
     return { link, ok: true, suggestionOnly: true };
   }
-  // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts] or [owner, repo, ...]
+  // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts] or [owner, repo, ...]
   const hasFilePath = parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree');
 
   if (!hasFilePath) {
@@ -387,7 +387,10 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
     return { link, ok: true, suggestionOnly: true };
   }
 
-  const filePath = parts.slice(4).join('/');
+  // The ref can contain slashes. Use the first split whose file exists here,
+  // or the slash-free split if none does.
+  const splits = refPathCandidates(parts.slice(3)).filter(s => s.filePath !== '');
+  const filePath = (splits.find(s => fs.existsSync(path.join(config.repoRoot, s.filePath))) ?? splits[0]).filePath;
   const resolvedPath = path.join(config.repoRoot, filePath);
   const exists = fs.existsSync(resolvedPath);
 

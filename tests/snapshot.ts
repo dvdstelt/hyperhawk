@@ -364,7 +364,8 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
   const tags = new Set(['v2/rc']);
 
   // fail maps a call, as it appears in the output, to the HTTP status it fails with.
-  const cases: { label: string; path: string; fail?: Record<string, number> }[] = [
+  // self links to the repo under test, which is checked on disk instead of through the API.
+  const cases: { label: string; path: string; fail?: Record<string, number>; self?: boolean }[] = [
     { label: 'plain ref', path: '/blob/main/docs/guide.md' },
     { label: 'slash ref', path: '/blob/2016/CloudConf2016/soa.pptx' },
     { label: 'renamed default branch', path: '/blob/master/docs/guide.md' },
@@ -379,6 +380,7 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     { label: 'ref lookup fails, file missing', path: '/blob/feature/x/docs/guide.md', fail: { 'refs heads/feature/': 500 } },
     { label: 'branch root', path: '/tree/release/1.0' },
     { label: 'branch root as blob', path: '/blob/release/1.0' },
+    { label: 'self-repo slash ref', path: '/blob/release/1.0/README.md', self: true },
   ];
 
   const config: Config = {
@@ -404,7 +406,7 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
   const lines: string[] = [];
   for (const [i, c] of cases.entries()) {
     // A repo per case, so no cached result carries over from another case.
-    const repoUrl = `https://github.com/acme/repo${i}`;
+    const repoUrl = c.self ? `https://github.com/${config.owner}/${config.repo}` : `https://github.com/acme/repo${i}`;
     const calls: string[] = [];
     const record = (call: string): void => {
       calls.push(call);
@@ -461,7 +463,7 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     } else if (!r.ok) {
       detail = ` | ${r.error ?? 'unknown'}`;
     }
-    lines.push(`sameorg:${c.label} | ${c.path} | ${status}${detail} | ${calls.join(', ')}`);
+    lines.push(`sameorg:${c.label} | ${c.path} | ${status}${detail} | ${calls.join(', ') || '(no API calls)'}`);
   }
 
   process.stdout.write(lines.join('\n') + '\n');
