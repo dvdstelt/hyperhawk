@@ -457,9 +457,6 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   };
 }
 
-/**
- * Check a same-org GitHub link via the GitHub API.
- */
 // Upper bound on the number of slash-separated segments tried as a ref.
 const MAX_REF_SEGMENTS = 5;
 
@@ -483,6 +480,9 @@ export function refPathCandidates(segments: string[]): { ref: string; filePath: 
   return candidates;
 }
 
+/**
+ * Check a same-org GitHub link via the GitHub API.
+ */
 async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): Promise<CheckResult> {
   const cached = resultCache.get(link.url);
   if (cached) {
@@ -557,7 +557,7 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
     }
 
     // If URL has a file/directory path (/blob/<ref>/<path> or /tree/<ref>/<path>), check it
-    // parts: [owner, repo, 'blob'|'tree', ref, ...pathParts]
+    // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts]; the ref can contain slashes
     if (parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree')) {
       const candidates = refPathCandidates(parts.slice(3));
       let { ref, filePath } = candidates[0];
