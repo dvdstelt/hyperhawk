@@ -98,8 +98,12 @@ reldepth1:82 | ../READM.md | broken
 reldepth1:9 | ../LICENS.md | broken
 refpath:main/docs/guide.md | main | docs/guide.md
 refpath:main/docs/guide.md | main/docs | guide.md
+refpath:main/docs/guide.md | main/docs/guide.md | (root)
 refpath:2016/CloudConf2016/soa.pptx | 2016 | CloudConf2016/soa.pptx
 refpath:2016/CloudConf2016/soa.pptx | 2016/CloudConf2016 | soa.pptx
+refpath:2016/CloudConf2016/soa.pptx | 2016/CloudConf2016/soa.pptx | (root)
+refpath:release/1.0 | release | 1.0
+refpath:release/1.0 | release/1.0 | (root)
 refpath:a/b/c/d/e/f/g/file.md | a | b/c/d/e/f/g/file.md
 refpath:a/b/c/d/e/f/g/file.md | a/b | c/d/e/f/g/file.md
 refpath:a/b/c/d/e/f/g/file.md | a/b/c | d/e/f/g/file.md
@@ -117,3 +121,5 @@ sameorg:slash tag | /blob/v2/rc/README.md | ok | content v2|rc/README.md, refs h
 sameorg:error on a guessed split | /blob/master/docs/guide.md | suggestion -> /blob/main/docs/guide.md | content master|docs/guide.md, refs heads/master/, refs tags/master/, content main|docs/guide.md
 sameorg:ref lookup fails, file on default branch | /blob/master/docs/guide.md | suggestion -> /blob/main/docs/guide.md | content master|docs/guide.md, refs heads/master/, refs tags/master/, content main|docs/guide.md
 sameorg:ref lookup fails, file missing | /blob/feature/x/docs/guide.md | broken | API error looking up refs: Error: HTTP 500 | content feature|x/docs/guide.md, refs heads/feature/, refs tags/feature/, content main|x/docs/guide.md
+sameorg:branch root | /tree/release/1.0 | ok | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
+sameorg:branch root as blob | /blob/release/1.0 | suggestion -> /tree/release/1.0 | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)

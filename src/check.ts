@@ -466,18 +466,34 @@ const MAX_REF_SEGMENTS = 5;
  * Branch names can contain slashes (e.g. release/1.0), so a URL like
  * /blob/release/1.0/docs/guide.md is ambiguous: the URL alone doesn't say
  * where the ref ends. GitHub resolves it against the refs that exist; here
- * every split is returned, shortest ref first, so callers can try each one.
- * The first candidate is the common case of a ref without slashes.
+ * each split with a ref of up to MAX_REF_SEGMENTS segments is returned,
+ * shortest ref first, so callers can try each one. When all segments fit in
+ * the ref, the last split has an empty file path: a link to the root of a
+ * branch, such as /tree/release/1.0. The first candidate is the common case
+ * of a ref without slashes.
  */
 export function refPathCandidates(segments: string[]): { ref: string; filePath: string }[] {
   const candidates: { ref: string; filePath: string }[] = [];
-  for (let i = 1; i < segments.length && candidates.length < MAX_REF_SEGMENTS; i++) {
+  for (let i = 1; i <= segments.length && i <= MAX_REF_SEGMENTS; i++) {
     candidates.push({
       ref: segments.slice(0, i).join('/'),
       filePath: segments.slice(i).join('/'),
     });
   }
   return candidates;
+}
+
+/**
+ * Replace the /<kind>/<ref> part of a GitHub URL. The ref can be the end of
+ * the path, as in a link to the root of a branch, so it is not always
+ * followed by a slash.
+ */
+function replaceKindAndRef(url: string, kind: string, ref: string, newKind: string, newRef: string): string {
+  const from = `/${kind}/${ref}`;
+  const at = url.indexOf(from);
+  const next = url.charAt(at + from.length);
+  if (at === -1 || (next !== '' && !'/?#'.includes(next))) return url;
+  return url.slice(0, at) + `/${newKind}/${newRef}` + url.slice(at + from.length);
 }
 
 // Branch and tag names found by listSlashRefs, per repo and prefix. The
@@ -642,7 +658,7 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
         const expectedKind = contentType === 'dir' ? 'tree' : 'blob';
         if (urlKind !== expectedKind) {
           core.debug(`[same-org] ${filePath} is a ${contentType} but URL uses /${urlKind}/, suggesting /${expectedKind}/`);
-          const correctedUrl = link.url.replace(`/${urlKind}/${ref}/`, `/${expectedKind}/${ref}/`);
+          const correctedUrl = replaceKindAndRef(link.url, urlKind, ref, expectedKind, ref);
           const suggestion = link.lineContent.trimEnd().replace(link.url, correctedUrl);
           const r = { ok: true, correctedUrl, suggestionOnly: true };
           resultCache.set(link.url, r);
@@ -665,10 +681,7 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
               ref: defaultBranch,
             });
             core.debug(`[same-org] File ${filePath} found on ${defaultBranch}, suggesting branch update`);
-            const correctedUrl = link.url.replace(
-              `/${parts[2]}/${ref}/`,
-              `/${parts[2]}/${defaultBranch}/`
-            );
+            const correctedUrl = replaceKindAndRef(link.url, urlKind, ref, urlKind, defaultBranch);
             const suggestion = link.lineContent.trimEnd().replace(link.url, correctedUrl);
             const r = { ok: true, correctedUrl, suggestionOnly: true };
             resultCache.set(link.url, r);

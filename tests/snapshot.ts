@@ -315,17 +315,19 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
 
 /**
  * Verify how same-org /blob/ and /tree/ URLs are split into a ref and a path.
- * Branch names can contain slashes, so every split is a candidate, shortest
- * ref first.
+ * Branch names can contain slashes, so each split with a ref of up to five
+ * segments is a candidate, shortest ref first. A split with no file path is
+ * shown as (root).
  */
 function runRefPathCandidatesTest(): void {
   const samples = [
     'main/docs/guide.md',
     '2016/CloudConf2016/soa.pptx',
+    'release/1.0',
     'a/b/c/d/e/f/g/file.md',
   ];
   const lines = samples.flatMap(s =>
-    refPathCandidates(s.split('/')).map(c => `refpath:${s} | ${c.ref} | ${c.filePath}`)
+    refPathCandidates(s.split('/')).map(c => `refpath:${s} | ${c.ref} | ${c.filePath || '(root)'}`)
   );
   process.stdout.write(lines.join('\n') + '\n');
 }
@@ -375,6 +377,8 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     { label: 'error on a guessed split', path: '/blob/master/docs/guide.md', fail: { 'content master/docs|guide.md': 500 } },
     { label: 'ref lookup fails, file on default branch', path: '/blob/master/docs/guide.md', fail: { 'refs heads/master/': 500 } },
     { label: 'ref lookup fails, file missing', path: '/blob/feature/x/docs/guide.md', fail: { 'refs heads/feature/': 500 } },
+    { label: 'branch root', path: '/tree/release/1.0' },
+    { label: 'branch root as blob', path: '/blob/release/1.0' },
   ];
 
   const config: Config = {
@@ -413,7 +417,7 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
         repos: {
           get: async () => ({ data: { default_branch: 'main', private: false } }),
           getContent: async ({ ref, path: filePath }: { ref: string; path: string }) => {
-            record(`content ${ref}|${filePath}`);
+            record(`content ${ref}|${filePath || '(root)'}`);
             const tree = refs[ref];
             if (!tree) throw httpError(404, `No commit found for the ref ${ref}`);
             const kind = tree[filePath];
