@@ -480,6 +480,27 @@ export function refPathCandidates(segments: string[]): { ref: string; filePath: 
   return candidates;
 }
 
+// Branch and tag names found by listSlashRefs, per repo and prefix. The
+// promises are cached, so concurrent checks of one repo share a lookup.
+const slashRefCache = new Map<string, Promise<Set<string>>>();
+
+/**
+ * List the branches and tags in a repo whose names start with `<prefix>/`.
+ */
+function listSlashRefs(octokit: Octokit, owner: string, repo: string, prefix: string): Promise<Set<string>> {
+  const key = `${owner}/${repo}`.toLowerCase() + `:${prefix}`;
+  let names = slashRefCache.get(key);
+  if (!names) {
+    names = Promise.all(['heads', 'tags'].map(kind =>
+      octokit.rest.git.listMatchingRefs({ owner, repo, ref: `${kind}/${prefix}/` })
+    )).then(responses => new Set(
+      responses.flatMap(r => r.data.map(d => d.ref.replace(/^refs\/(heads|tags)\//, '')))
+    ));
+    slashRefCache.set(key, names);
+  }
+  return names;
+}
+
 /**
  * Check a same-org GitHub link via the GitHub API.
  */
@@ -559,33 +580,60 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
     // If URL has a file/directory path (/blob/<ref>/<path> or /tree/<ref>/<path>), check it
     // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts]; the ref can contain slashes
     if (parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree')) {
-      const candidates = refPathCandidates(parts.slice(3));
-      let { ref, filePath } = candidates[0];
+      const [first, ...longer] = refPathCandidates(parts.slice(3));
+      // The split that the result describes: the slash-free split, until a
+      // longer split is known to have a ref that exists.
+      let { ref, filePath } = first;
+      // An API error that leaves open whether the link is valid.
+      let inconclusiveError: unknown;
 
       const urlKind = parts[2] as 'blob' | 'tree';
       core.debug(`[same-org] Verifying ${urlKind} ${filePath} at ref ${ref} in ${repoOwner}/${repoName}`);
 
+      const getContent = (split: { ref: string; filePath: string }) => octokit.rest.repos.getContent({
+        owner: repoOwner,
+        repo: repoName,
+        path: split.filePath,
+        ref: split.ref,
+      });
+
       try {
-        let content: Awaited<ReturnType<typeof octokit.rest.repos.getContent>> | undefined;
-        let firstError: unknown;
-        for (const candidate of candidates) {
+        let content: Awaited<ReturnType<typeof getContent>> | undefined;
+        let notFound: unknown;
+        try {
+          content = await getContent(first);
+        } catch (err: unknown) {
+          // Only a 404 can mean the ref contains a slash; anything else is a real error.
+          if (getStatusCode(err) !== 404) throw err;
+          core.debug(`[same-org] ${first.filePath} not found at ref ${first.ref}`);
+          notFound = err;
+        }
+
+        // Try the longer splits, but only those whose ref exists, so a broken
+        // link costs one ref lookup instead of a call per split. The default
+        // branch is skipped: git does not allow a branch main/x next to main.
+        if (!content && longer.length > 0 && first.ref !== defaultBranch) {
+          let names = new Set<string>();
           try {
-            content = await octokit.rest.repos.getContent({
-              owner: repoOwner,
-              repo: repoName,
-              path: candidate.filePath,
-              ref: candidate.ref,
-            });
-            ({ ref, filePath } = candidate);
-            break;
+            names = await listSlashRefs(octokit, repoOwner, repoName, first.ref);
           } catch (err: unknown) {
-            firstError ??= err;
-            // Only a 404 can mean the ref contains a slash; anything else is a real error.
-            if (getStatusCode(err) !== 404) throw err;
-            core.debug(`[same-org] ${candidate.filePath} not found at ref ${candidate.ref}`);
+            core.debug(`[same-org] Could not list refs below ${first.ref}/ in ${repoOwner}/${repoName}: ${String(err)}`);
+            inconclusiveError = err;
+          }
+          for (const split of longer.filter(c => names.has(c.ref))) {
+            // This ref exists, so if its path does not, the result describes this split.
+            ({ ref, filePath } = split);
+            try {
+              content = await getContent(split);
+              break;
+            } catch (err: unknown) {
+              if (getStatusCode(err) !== 404) throw err;
+              core.debug(`[same-org] ${split.filePath} not found at ref ${split.ref}`);
+              notFound = err;
+            }
           }
         }
-        if (!content) throw firstError;
+        if (!content) throw notFound;
         core.debug(`[same-org] File ${filePath} found at ref ${ref} in ${repoOwner}/${repoName}`);
 
         // Suggest fixing blob/tree mismatch: /blob/ is for files, /tree/ is for directories.
@@ -630,11 +678,19 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
           }
         }
 
-        const r = {
-          ok: false,
-          statusCode: status,
-          error: status === 404 ? `File not found in repo: ${filePath}` : `API error: ${String(err)}`,
-        };
+        // A failed ref lookup leaves open whether the link is valid, so report
+        // that error instead of a missing file.
+        const r = inconclusiveError !== undefined
+          ? {
+            ok: false,
+            statusCode: getStatusCode(inconclusiveError),
+            error: `API error looking up refs: ${String(inconclusiveError)}`,
+          }
+          : {
+            ok: false,
+            statusCode: status,
+            error: status === 404 ? `File not found in repo: ${filePath}` : `API error: ${String(err)}`,
+          };
         resultCache.set(link.url, r);
         return { link, ...r };
       }

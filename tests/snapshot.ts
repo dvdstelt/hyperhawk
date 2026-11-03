@@ -354,10 +354,12 @@ async function withoutDebugOutput(fn: () => Promise<void>): Promise<void> {
 async function runSameOrgApiTest(repoRoot: string): Promise<void> {
   // The paths on each ref of the stub repos; '' is the root directory.
   const refs: Record<string, Record<string, 'file' | 'dir'>> = {
-    'main': { '': 'dir', 'docs': 'dir', 'docs/guide.md': 'file' },
+    'main': { '': 'dir', 'docs': 'dir', 'docs/guide.md': 'file', 'docs/new.md': 'file' },
     'release/1.0': { '': 'dir', 'docs': 'dir', 'docs/guide.md': 'file' },
     '2016/CloudConf2016': { '': 'dir', 'soa.pptx': 'file' },
+    'v2/rc': { '': 'dir', 'README.md': 'file' },
   };
+  const tags = new Set(['v2/rc']);
 
   // fail maps a call, as it appears in the output, to the HTTP status it fails with.
   const cases: { label: string; path: string; fail?: Record<string, number> }[] = [
@@ -366,6 +368,13 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     { label: 'renamed default branch', path: '/blob/master/docs/guide.md' },
     { label: 'blob on a directory', path: '/blob/release/1.0/docs' },
     { label: 'api error', path: '/blob/main/docs/guide.md', fail: { 'content main|docs/guide.md': 500 } },
+    { label: 'missing file on default branch', path: '/blob/main/docs/missing.md' },
+    { label: 'slash ref, missing file', path: '/blob/release/1.0/docs/missing.md' },
+    { label: 'slash ref, file only on default branch', path: '/blob/release/1.0/docs/new.md' },
+    { label: 'slash tag', path: '/blob/v2/rc/README.md' },
+    { label: 'error on a guessed split', path: '/blob/master/docs/guide.md', fail: { 'content master/docs|guide.md': 500 } },
+    { label: 'ref lookup fails, file on default branch', path: '/blob/master/docs/guide.md', fail: { 'refs heads/master/': 500 } },
+    { label: 'ref lookup fails, file missing', path: '/blob/feature/x/docs/guide.md', fail: { 'refs heads/feature/': 500 } },
   ];
 
   const config: Config = {
@@ -413,12 +422,12 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
           },
         },
         git: {
-          // ref is 'heads/<prefix>' or 'tags/<prefix>'; the stub repos have no tags.
+          // ref is 'heads/<prefix>' or 'tags/<prefix>'.
           listMatchingRefs: async ({ ref }: { ref: string }) => {
             record(`refs ${ref}`);
             const [kind, ...rest] = ref.split('/');
             const prefix = rest.join('/');
-            const names = kind === 'heads' ? Object.keys(refs).filter(name => name.startsWith(prefix)) : [];
+            const names = Object.keys(refs).filter(name => (kind === 'tags') === tags.has(name) && name.startsWith(prefix));
             return { data: names.map(name => ({ ref: `refs/${kind}/${name}` })) };
           },
         },
