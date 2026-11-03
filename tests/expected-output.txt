@@ -105,3 +105,8 @@ refpath:a/b/c/d/e/f/g/file.md | a/b | c/d/e/f/g/file.md
 refpath:a/b/c/d/e/f/g/file.md | a/b/c | d/e/f/g/file.md
 refpath:a/b/c/d/e/f/g/file.md | a/b/c/d | e/f/g/file.md
 refpath:a/b/c/d/e/f/g/file.md | a/b/c/d/e | f/g/file.md
+sameorg:plain ref | /blob/main/docs/guide.md | ok | content main|docs/guide.md
+sameorg:slash ref | /blob/2016/CloudConf2016/soa.pptx | ok | content 2016|CloudConf2016/soa.pptx, content 2016/CloudConf2016|soa.pptx
+sameorg:renamed default branch | /blob/master/docs/guide.md | suggestion -> /blob/main/docs/guide.md | content master|docs/guide.md, content master/docs|guide.md, content main|docs/guide.md
+sameorg:blob on a directory | /blob/release/1.0/docs | suggestion -> /tree/release/1.0/docs | content release|1.0/docs, content release/1.0|docs
+sameorg:api error | /blob/main/docs/guide.md | broken | API error: Error: HTTP 500 | content main|docs/guide.md
