@@ -202,7 +202,11 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
     if (excluded.some(e => rel === e || rel.startsWith(e + '/'))) continue;
 
     const ext = path.extname(file).toLowerCase();
-    if (!MARKUP_EXTENSIONS.has(ext)) continue;
+    // Static files are copied to the same path, except from underscore folders.
+    if (!MARKUP_EXTENSIONS.has(ext)) {
+      if (!rel.split('/').some(s => s.startsWith('_'))) routes.add('/' + rel);
+      continue;
+    }
 
     const segments = rel.split('/');
     const outputExt = '.html';
@@ -321,7 +325,7 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
       const candidates = p.endsWith('/')
         ? [p + 'index.html']
         : [p, p + '.html', p + '/index.html'];
-      return candidates.some(c => routes.has(c) || fs.existsSync(path.join(siteRoot, c)));
+      return candidates.some(c => routes.has(c));
     },
   };
 }

@@ -38,3 +38,12 @@ title: Links
 - [Date with an offset, as written (broken)](/blog/2024/07/01/offset.html)
 - [UTC date, in the site time zone](/blog/2024/08/02/utc.html)
 - [UTC date, as written (broken)](/blog/2024/08/01/utc.html)
+
+## Sources that are not published (should be broken)
+
+- [Excluded folder](/blog/excluded)
+- [Excluded source](/blog/excluded/page.md)
+- [Converted page source](/blog/about.md)
+- [Draft source](/blog/_drafts/draft.md)
+- [Collection source without output](/blog/_notes/note.md)
+- [Folder without an index page](/blog/files)
