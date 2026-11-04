@@ -23,5 +23,5 @@ jobs:
           strict: ${{ secrets.LINK_CHECK_STRICT }}
           check-external: true
           check-same-org: true
-          files: '**/*.md,**/*.mdx,!tests/test-document.md'
+          files: '**/*.md,**/*.mdx,!tests/**'
 
