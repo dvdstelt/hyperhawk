@@ -174,7 +174,9 @@ function resolvePermalinkTemplate(permalink: unknown, fallback: string): string 
  */
 export function loadJekyllSite(siteRoot: string): JekyllSite {
   const routes = new Set<string>();
-  const config = (readYamlFile(path.join(siteRoot, '_config.yml')) ?? {}) as FrontMatter;
+  // Jekyll reads _config.yml, or _config.yaml when there is no _config.yml.
+  const configFile = ['_config.yml', '_config.yaml'].map(name => path.join(siteRoot, name)).find(f => fs.existsSync(f));
+  const config = ((configFile && readYamlFile(configFile)) ?? {}) as FrontMatter;
 
   const baseurl = typeof config.baseurl === 'string' ? config.baseurl.replace(/\/+$/, '') : '';
   const globalPermalink = resolvePermalinkTemplate(config.permalink, PERMALINK_STYLES.date);

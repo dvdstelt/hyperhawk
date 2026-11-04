@@ -521,6 +521,69 @@ async function runJekyllTest(repoRoot: string): Promise<void> {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
+/**
+ * Verify how a Jekyll site with an unusual config is read. Each line ends with
+ * the warnings that HyperHawk writes, or (no warnings).
+ */
+async function runJekyllConfigTest(repoRoot: string): Promise<void> {
+  const cases: { label: string; site: string; url: string }[] = [
+    { label: 'config in _config.yaml', site: 'tests/jekyll-config-yaml', url: '/yaml/about.html' },
+  ];
+
+  const lines: string[] = [];
+  for (const c of cases) {
+    const config: Config = {
+      token: '',
+      repoRoot,
+      owner: 'dvdstelt',
+      repo: 'hyperhawk',
+      strict: false,
+      checkExternal: false,
+      checkSameOrg: false,
+      checkRelative: true,
+      relativeSuggestionDepth: 0,
+      ignorePatterns: [],
+      timeout: 5000,
+      filePatterns: [],
+      concurrency: 1,
+      skipCodeBlocks: false,
+      reportOnlyChanged: false,
+      siteGenerator: 'jekyll',
+      siteRoot: path.join(repoRoot, c.site),
+    };
+    const link: LinkInfo = {
+      url: c.url,
+      text: c.label,
+      filePath: `${c.site}/about.md`,
+      line: 1,
+      lineContent: `[${c.label}](${c.url})`,
+      type: 'internal',
+    };
+
+    // Keep the ::warning:: lines from @actions/core, with the repo path made stable.
+    const warnings: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    process.stdout.write = function (chunk: any, ...args: any[]) {
+      if (typeof chunk === 'string' && chunk.startsWith('::warning::')) {
+        warnings.push(chunk.trim().replaceAll(repoRoot, '<root>'));
+        return true;
+      }
+      return (original as any)(chunk, ...args);
+    } as any;
+    let result: CheckResult | undefined;
+    try {
+      [result] = await checkLinks([link], config, null as any);
+    } finally {
+      process.stdout.write = original;
+    }
+
+    const status = result!.ok ? 'ok' : 'broken';
+    lines.push(`jekyllconfig:${c.label} | ${c.url} | ${status} | ${warnings.join(', ') || '(no warnings)'}`);
+  }
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -536,6 +599,7 @@ async function main(): Promise<void> {
     runRefPathCandidatesTest();
     await runSameOrgApiTest(repoRoot);
     await runJekyllTest(repoRoot);
+    await runJekyllConfigTest(repoRoot);
   } finally {
     await closeServer();
   }
