@@ -17,6 +17,7 @@ import { extractLinks, filterIgnored } from '../src/extract';
 import { checkLinks, refPathCandidates } from '../src/check';
 import { Config, CheckResult, LinkInfo } from '../src/types';
 import { mergeResultsForLine, reportSummary } from '../src/report';
+import { globFiles } from '../src/files';
 
 /**
  * Start a local HTTP server that serves various redirect scenarios.
@@ -843,6 +844,29 @@ async function runJekyllConfigTest(repoRoot: string): Promise<void> {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
+/**
+ * Verify the files that are scanned outside a pull request. A pattern that
+ * starts with ! in the files input excludes files, also when it comes first.
+ */
+async function runGlobFilesTest(repoRoot: string): Promise<void> {
+  const cases = [
+    'tests/*.md',
+    'tests/*.md,!tests/test-document.md',
+    '!tests/test-document.md,tests/*.md',
+  ];
+
+  const lines: string[] = [];
+  await withoutDebugOutput(async () => {
+    for (const filesInput of cases) {
+      const files = await globFiles(filesInput.split(','), repoRoot);
+      const rel = files.map(f => path.relative(repoRoot, f).replace(/\\/g, '/')).sort();
+      lines.push(`files:${filesInput} | ${rel.join(', ')}`);
+    }
+  });
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -862,6 +886,7 @@ async function main(): Promise<void> {
     await runSameOrgCacheTest(repoRoot);
     await runJekyllTest(repoRoot);
     await runJekyllConfigTest(repoRoot);
+    await runGlobFilesTest(repoRoot);
   } finally {
     await closeServer();
   }
