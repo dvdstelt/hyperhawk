@@ -137,7 +137,7 @@ Set `site-generator` to `jekyll` to verify root-relative links against the pages
 
 When a root-relative link doesn't match a file on disk, HyperHawk computes the site's URLs from its sources and accepts the link if Jekyll would generate it:
 
-- **Posts** in `_posts/` (including category folders such as `travel/_posts/`), using the `permalink` from `_config.yml` (built-in styles like `date` and `pretty`, or a custom pattern), front matter `permalink`, and `category`/`categories`
+- **Posts** in `_posts/` (including category folders such as `travel/_posts/`), using the `permalink` from `_config.yml` (built-in styles like `date` and `pretty`, or a custom pattern), front matter `permalink`, `category`/`categories`, and `date`. A `date` with a UTC offset is converted to the `timezone` from `_config.yml`, or to UTC when it isn't set, as on GitHub Pages. This can move the post to the day before or after.
 - **Pages**, including `index` pages served at their folder URL (`/docs/`)
 - **Collections** with `output: true`, honoring the collection's `permalink`
 - **Redirects** declared with `redirect_from` ([jekyll-redirect-from](https://github.com/jekyll/jekyll-redirect-from))

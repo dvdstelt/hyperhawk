@@ -29,3 +29,12 @@ title: Links
 - [Collection without output](/blog/notes/note.html)
 - [Excluded page](/blog/excluded/page.html)
 - [Post without baseurl](/2024/01/15/hello-world.html)
+
+## Front matter dates
+
+- [Date from front matter](/blog/2024/06/20/dated.html)
+- [Date from the file name (broken)](/blog/2024/06/01/dated.html)
+- [Date with an offset, in the site time zone](/blog/2024/07/02/offset.html)
+- [Date with an offset, as written (broken)](/blog/2024/07/01/offset.html)
+- [UTC date, in the site time zone](/blog/2024/08/02/utc.html)
+- [UTC date, as written (broken)](/blog/2024/08/01/utc.html)

@@ -143,4 +143,10 @@ jekyll:28 | /blog/draft.html | broken
 jekyll:29 | /blog/notes/note.html | broken
 jekyll:30 | /blog/excluded/page.html | broken
 jekyll:31 | /2024/01/15/hello-world.html | broken
+jekyll:35 | /blog/2024/06/20/dated.html | ok
+jekyll:36 | /blog/2024/06/01/dated.html | broken
+jekyll:37 | /blog/2024/07/02/offset.html | ok
+jekyll:38 | /blog/2024/07/01/offset.html | broken
+jekyll:39 | /blog/2024/08/02/utc.html | ok
+jekyll:40 | /blog/2024/08/01/utc.html | broken
 jekyll:9 | /blog/2024/01/15/hello-world.html | ok

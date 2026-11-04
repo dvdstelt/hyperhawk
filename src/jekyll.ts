@@ -10,7 +10,7 @@ import { parse as parseYaml } from 'yaml';
  * have no matching file on disk. This module computes those URLs from the
  * site sources so they can be verified without building the site.
  *
- * Supported: posts (global and front matter permalinks, categories),
+ * Supported: posts (global and front matter permalinks, categories, dates),
  * pages, collections with output: true, redirect_from (jekyll-redirect-from)
  * and baseurl. Not supported: plugins that generate pages (pagination,
  * tag/category archives), data-driven pages, and Liquid in permalinks.
@@ -102,6 +102,49 @@ function isoWeek(year: number, month: number, day: number): string {
   return String(Math.ceil(((date.getTime() - yearStart) / 86400000 + 1) / 7)).padStart(2, '0');
 }
 
+interface PostDate {
+  year: number;
+  month: number;
+  day: number;
+}
+
+// YYYY-MM-DD, optionally followed by a time and a UTC offset
+const FRONT_MATTER_DATE = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[Tt\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\s*(Z|[+-]\d{1,2}(?::?\d{2})?)?)?\s*$/;
+
+/**
+ * The time zone Jekyll builds the site in: timezone from _config.yml, or UTC
+ * as on GitHub Pages. An unknown time zone is treated as UTC, like Ruby does.
+ */
+function siteTimezone(value: unknown): string {
+  if (typeof value !== 'string' || !value) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value });
+    return value;
+  } catch {
+    return 'UTC';
+  }
+}
+
+/**
+ * The date Jekyll puts in a post URL. A front matter date overrides the date in
+ * the file name. A date with a UTC offset is converted to the site time zone,
+ * so it can move to the day before or after.
+ */
+function postDate(value: unknown, fileDate: PostDate, timezone: string): PostDate {
+  const m = typeof value === 'string' ? FRONT_MATTER_DATE.exec(value) : null;
+  if (!m) return fileDate;
+  const [, year, month, day, hour, minute, second, offset] = m;
+  if (!offset) return { year: +year, month: +month, day: +day };
+
+  const [, sign, offsetHours, offsetMinutes] = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(offset) ?? ['', '+', '0', '0'];
+  const offsetMs = (sign === '-' ? -1 : 1) * (+offsetHours * 60 + +(offsetMinutes ?? 0)) * 60000;
+  const instant = Date.UTC(+year, +month - 1, +day, +hour, +minute, +(second ?? 0)) - offsetMs;
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, year: 'numeric', month: 'numeric', day: 'numeric' })
+    .formatToParts(new Date(instant));
+  const part = (type: string): number => Number(parts.find(p => p.type === type)?.value);
+  return { year: part('year'), month: part('month'), day: part('day') };
+}
+
 function walk(dir: string, results: string[]): void {
   let entries: fs.Dirent[];
   try {
@@ -135,6 +178,7 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
 
   const baseurl = typeof config.baseurl === 'string' ? config.baseurl.replace(/\/+$/, '') : '';
   const globalPermalink = resolvePermalinkTemplate(config.permalink, PERMALINK_STYLES.date);
+  const timezone = siteTimezone(config.timezone);
   const excluded = toStringList(config.exclude).map(e => e.replace(/^\/+|\/+$/g, ''));
 
   const collections = readCollections(config);
@@ -178,7 +222,7 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
       const fm = readFrontMatter(file) ?? {};
       if (fm.published === false) continue;
 
-      const [, year, month, day, slug] = m;
+      const [, fileYear, fileMonth, fileDay, slug] = m;
       const folderCategories = segments.slice(collectionsDir ? collectionsDir.split('/').length : 0, postsIdx);
       const categories = [
         ...folderCategories,
@@ -187,9 +231,10 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
       ].map(c => c.toLowerCase());
       const uniqueCategories = [...new Set(categories)];
       const title = typeof fm.slug === 'string' ? fm.slug : slug;
-      const y = parseInt(year, 10);
-      const mo = parseInt(month, 10);
-      const d = parseInt(day, 10);
+      const { year: y, month: mo, day: d } = postDate(fm.date, { year: +fileYear, month: +fileMonth, day: +fileDay }, timezone);
+      const year = String(y).padStart(4, '0');
+      const month = String(mo).padStart(2, '0');
+      const day = String(d).padStart(2, '0');
       const values: Record<string, string> = {
         year,
         month,

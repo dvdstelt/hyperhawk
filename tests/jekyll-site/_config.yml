@@ -1,5 +1,6 @@
 baseurl: /blog
 permalink: /:categories/:year/:month/:day/:title:output_ext
+timezone: Europe/Amsterdam
 collections:
   talks:
     output: true
