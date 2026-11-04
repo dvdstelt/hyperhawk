@@ -591,6 +591,89 @@ async function runSummaryTest(repoRoot: string): Promise<void> {
 }
 
 /**
+ * Verify the PR comment text for same-org suggestions. Only a link to the
+ * repo under test gets a local path; a link to another repo keeps a full URL,
+ * so its comment must not say that it points to the current repository.
+ */
+async function runSameOrgCommentTest(repoRoot: string): Promise<void> {
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'acme',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: true,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: [],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
+  };
+
+  const calls: string[] = [];
+  const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
+  const octokit = {
+    rest: {
+      repos: {
+        get: async () => ({ data: { default_branch: 'main', private: false } }),
+        getContent: async ({ ref, path: filePath }: { ref: string; path: string }) => {
+          calls.push(`content ${ref}|${filePath}`);
+          if (ref !== 'main') throw httpError(404, `No commit found for the ref ${ref}`);
+          if (filePath === 'docs') return { data: [] };
+          if (filePath === 'docs/guide.md') return { data: { type: 'file' } };
+          throw httpError(404, 'Not Found');
+        },
+      },
+      git: {
+        listMatchingRefs: async ({ ref }: { ref: string }) => {
+          calls.push(`refs ${ref}`);
+          return { data: [] };
+        },
+      },
+    },
+  };
+
+  const cases = [
+    { label: 'self-repo', url: 'https://github.com/acme/hyperhawk/blob/main/README.md' },
+    { label: 'blob on a directory', url: 'https://github.com/acme/comment-tree/blob/main/docs' },
+    { label: 'renamed default branch', url: 'https://github.com/acme/comment-branch/blob/master/docs/guide.md' },
+  ];
+
+  const lines: string[] = [];
+  for (const c of cases) {
+    const link: LinkInfo = {
+      url: c.url,
+      text: c.label,
+      filePath: 'tests/test-document.md',
+      line: 1,
+      lineContent: `[${c.label}](${c.url})`,
+      type: 'same-org',
+    };
+
+    let result: CheckResult | undefined;
+    await withoutDebugOutput(async () => {
+      [result] = await checkLinks([link], config, octokit as any);
+    });
+
+    // The comment text comes before the suggestion block.
+    const { body } = mergeResultsForLine([result!]);
+    const text = body.split('\n\n```suggestion')[0];
+    for (const line of text.split('\n')) {
+      lines.push(`samecomment:${c.label} | ${line}`);
+    }
+  }
+  lines.push(`samecomment:calls | ${calls.join(', ')}`);
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+/**
  * Verify site-generator: jekyll. Root-relative links in tests/jekyll-site/links.md
  * point to pages Jekyll generates at build time (posts, collections, permalinks,
  * redirect_from, baseurl) and to pages it doesn't generate (drafts, unpublished
@@ -714,6 +797,7 @@ async function main(): Promise<void> {
     runRefPathCandidatesTest();
     await runSameOrgApiTest(repoRoot);
     await runSummaryTest(repoRoot);
+    await runSameOrgCommentTest(repoRoot);
     await runJekyllTest(repoRoot);
     await runJekyllConfigTest(repoRoot);
   } finally {
