@@ -32,8 +32,8 @@ const PERMALINK_STYLES: Record<string, string> = {
   none: '/:categories/:title:output_ext',
 };
 
-// Directories Jekyll never reads, plus the ones HyperHawk already skips.
-const SKIPPED_DIRS = new Set(['node_modules', 'vendor', 'dist', 'lib']);
+// Directories Jekyll excludes by default (node_modules, and vendor for Bundler).
+const SKIPPED_DIRS = new Set(['node_modules', 'vendor']);
 
 interface FrontMatter {
   [key: string]: unknown;

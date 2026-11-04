@@ -47,3 +47,7 @@ title: Links
 - [Draft source](/blog/_drafts/draft.md)
 - [Collection source without output](/blog/_notes/note.md)
 - [Folder without an index page](/blog/files)
+
+## Folders named dist or lib (should resolve)
+
+- [Page in dist](/blog/dist/guide.html)
