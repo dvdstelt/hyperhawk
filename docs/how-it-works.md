@@ -75,6 +75,8 @@ How close counts as "leave it alone" is configurable via [`relative-suggestion-d
 
 Full GitHub URLs that point back to the current repository (e.g. `https://github.com/owner/repo/blob/main/README.md`) get a suggestion to rewrite them as local paths. This avoids unnecessary network requests and keeps links working across forks. When the target file has been moved, the same fuzzy-matching logic is used to suggest the corrected local path.
 
+Files in `.github/ISSUE_TEMPLATE/`, and files excluded from `suggest-local-path`, keep their full URLs, because they become issue bodies where local paths do not work. See [Keeping full URLs in issue drafts](/docs/configuration.md#keeping-full-urls-in-issue-drafts).
+
 ### Redirect suggestions
 
 External links that redirect to a different URL on the same host get a suggestion to update to the final destination, with any tracking parameters the redirect added stripped out. Fragment identifiers (`#section`) from the original URL are preserved when the redirect target does not include one.

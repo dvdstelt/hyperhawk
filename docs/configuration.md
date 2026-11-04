@@ -96,6 +96,36 @@ Links at or below the configured depth are left as-is; deeper links still get a 
 
 This only suppresses the conversion suggestion; genuinely broken relative links are still reported regardless of depth. The maximum is `5`. If you want to suppress suggestions for links deeper than that, disable relative checking with `check-relative: false` instead.
 
+## Excluding features for some files
+
+The `exclude` input turns off a feature for the files that match a glob pattern. The value is YAML: each key is a feature, and its value is a list of patterns.
+
+```yaml
+- uses: dvdstelt/hyperhawk@v1
+  with:
+    token: ${{ secrets.GITHUB_TOKEN }}
+    exclude: |
+      suggest-local-path:
+        - issue-drafts/**
+        - '**/drafts/**'
+```
+
+Patterns match the path of the markdown file that contains the link, relative to the repository root. They do not match the link URL; to skip links by URL, use [ignore patterns](#ignore-patterns). Quote a pattern that starts with `*`, because YAML reads an unquoted `*` as an alias. For a single pattern, you can use a string instead of a list.
+
+If the YAML is not valid, a feature is unknown, or a value is not a list of patterns, HyperHawk shows a warning and ignores that part.
+
+| Feature | What it turns off |
+|---------|-------------------|
+| `suggest-local-path` | The suggestion to rewrite a full GitHub URL to the current repository as a local path. |
+
+### Keeping full URLs in issue drafts
+
+Some repositories draft issues as markdown files in a pull request, and later create the issue from the file. Local paths do not work in an issue, so links to the same repository must stay full URLs. Exclude these files from `suggest-local-path`.
+
+HyperHawk still checks that the target of each full URL exists in the checkout. A valid link gets no suggestion. A broken link is reported, and if HyperHawk finds the file in another location, it suggests a corrected full URL instead of a local path.
+
+Files in `.github/ISSUE_TEMPLATE/` always keep full URLs. You do not have to add them to `exclude`.
+
 ## Skip code blocks
 
 By default, links inside fenced code blocks are checked like any other link. If your code blocks contain example URLs or configuration snippets that should not be validated, enable `skip-code-blocks`:

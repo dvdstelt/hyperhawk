@@ -80,6 +80,7 @@ Need to check links into **private repositories** in the same org? See [Cross-re
 | `check-relative` | no | `true` | Whether to check relative file links (`../x.md`, `./x.md`, `folder/x.md`). Root-relative (`/x.md`) links are always checked. |
 | `relative-suggestion-depth` | no | `0` | Skip root-relative conversion suggestions for relative links within this many directory levels (`0` = only same-folder; `1` also exempts `../x.md` and `folder/x.md`). Max `5`; disable `check-relative` for deeper. |
 | `ignore-patterns` | no | _(empty)_ | Comma-separated regex patterns. Matching URLs are skipped. |
+| `exclude` | no | _(empty)_ | YAML map from a feature to the files where it is off, for example `suggest-local-path` for files that become issue bodies. See [Excluding features for some files](/docs/configuration.md#excluding-features-for-some-files). |
 | `timeout` | no | `10000` | Timeout in milliseconds for each external link request. |
 | `concurrency` | no | `5` | Number of links checked in parallel. |
 | `strict` | no | `false` | Fail the workflow when broken links are found. |

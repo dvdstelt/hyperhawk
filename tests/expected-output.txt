@@ -204,6 +204,25 @@ jekyll-outside:5 | /blog/about.html | broken
 jekyllconfig:config in _config.yaml | /yaml/about.html | ok | (no warnings)
 jekyllconfig:missing site root | /about.html | broken | ::warning::site-root <root>/tests/no-such-site is not a folder, so links to generated Jekyll pages are not verified.
 jekyllconfig:config that cannot be parsed | /about.html | ok | ::warning::Cannot parse <root>/tests/jekyll-config-bad/_config.yml, so the Jekyll defaults are used: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1
-files:tests/*.md | tests/file with spaces.md, tests/jekyll-outside.md, tests/placeholder.md, tests/test-document.md
-files:tests/*.md,!tests/test-document.md | tests/file with spaces.md, tests/jekyll-outside.md, tests/placeholder.md
-files:!tests/test-document.md,tests/*.md | tests/file with spaces.md, tests/jekyll-outside.md, tests/placeholder.md
+files:tests/*.md | tests/file with spaces.md, tests/issue-draft.md, tests/jekyll-outside.md, tests/placeholder.md, tests/test-document.md
+files:tests/*.md,!tests/test-document.md | tests/file with spaces.md, tests/issue-draft.md, tests/jekyll-outside.md, tests/placeholder.md
+files:!tests/test-document.md,tests/*.md | tests/file with spaces.md, tests/issue-draft.md, tests/jekyll-outside.md, tests/placeholder.md
+exclude:11 | https://github.com/dvdstelt/hyperhawk/issues | ok
+exclude:5 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | ok
+exclude:7 | https://github.com/dvdstelt/hyperhawk/blob/main/test/placeholder.md?plain=1#L1 | broken -> https://github.com/dvdstelt/hyperhawk/blob/main/tests/placeholder.md?plain=1#L1
+exclude:9 | https://github.com/dvdstelt/hyperhawk/blob/main/zzqx-missing.md | broken | File not found: <root>/zzqx-missing.md
+noexclude:11 | https://github.com/dvdstelt/hyperhawk/issues | ok
+noexclude:5 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion -> /README.md
+noexclude:7 | https://github.com/dvdstelt/hyperhawk/blob/main/test/placeholder.md?plain=1#L1 | broken -> placeholder.md#L1
+noexclude:9 | https://github.com/dvdstelt/hyperhawk/blob/main/zzqx-missing.md | broken -> /zzqx-missing.md
+excludeparse:empty | {}
+excludeparse:list | {"suggest-local-path":["issue-drafts/**","**/drafts/**"]}
+excludeparse:single pattern | {"suggest-local-path":["issue-drafts/**"]}
+::warning::Ignoring unknown feature "suggest-local-paths" in exclude. Supported features: suggest-local-path.
+excludeparse:unknown feature | {}
+::warning::Ignoring the exclude input because it is not valid YAML: Unresolved alias (the anchor must be set before the alias): */drafts/**. Quote patterns that start with *, for example '**/drafts/**'.
+excludeparse:unquoted star | {}
+::warning::Ignoring the exclude input because it is not a map from feature to file patterns.
+excludeparse:not a map | {}
+::warning::Ignoring exclude.suggest-local-path because it is not a list of file patterns.
+excludeparse:not patterns | {}
