@@ -128,6 +128,38 @@ sameorg:self-repo root | / | ok | (no API calls)
 sameorg:self-repo branch root | /tree/main | ok | (no API calls)
 sameorg:self-repo issues | /issues | ok | (no API calls)
 sameorg:self-repo pull request | /pull/1 | ok | (no API calls)
+summary:notice | ::notice title=Use Root-Relative Link,file=tests/test-document.md,line=1::Relative link should be root-relative: ../README.md
+summary:notice | ::notice title=Update Same-Org Link,file=tests/test-document.md,line=2::Same-org link can be updated: https://github.com/acme/hyperhawk/blob/main/README.md -> /README.md
+summary:notice | ::notice title=Update Same-Org Link,file=tests/test-document.md,line=3::Same-org link can be updated: https://github.com/acme/summary-blob/blob/main/docs -> https://github.com/acme/summary-blob/tree/main/docs
+summary:notice | ::notice title=Update Same-Org Link,file=tests/test-document.md,line=4::Same-org link can be updated: https://github.com/acme/summary-branch/blob/master/docs/guide.md -> https://github.com/acme/summary-branch/blob/main/docs/guide.md
+summary:file | ## HyperHawk Link Check Results
+summary:file |
+summary:file | - **Total links checked:** 4
+summary:file | - **Broken links found:** 0
+summary:file | - **Redirect suggestions:** 0
+summary:file | - **Root-relative suggestions:** 1
+summary:file | - **Same-org link suggestions:** 3
+summary:file |
+summary:file | ### Root-Relative Suggestions
+summary:file |
+summary:file | These links work today but will break if the file containing them is moved.
+summary:file | Converting them to root-relative paths (/folder/file.md) makes them location-independent.
+summary:file |
+summary:file | | File | Line | Current URL |
+summary:file | |------|------|-------------|
+summary:file | | `tests/test-document.md` | 1 | `../README.md` |
+summary:file |
+summary:file | ### Same-Org Link Suggestions
+summary:file |
+summary:file | These GitHub links work today, but a better URL exists.
+summary:file | A link to this repository can be a local path. A link to another repository can use its default branch, or /tree/ for a folder.
+summary:file |
+summary:file | | File | Line | Current URL | Suggested URL |
+summary:file | |------|------|-------------|---------------|
+summary:file | | `tests/test-document.md` | 2 | `https://github.com/acme/hyperhawk/blob/main/README.md` | `/README.md` |
+summary:file | | `tests/test-document.md` | 3 | `https://github.com/acme/summary-blob/blob/main/docs` | `https://github.com/acme/summary-blob/tree/main/docs` |
+summary:file | | `tests/test-document.md` | 4 | `https://github.com/acme/summary-branch/blob/master/docs/guide.md` | `https://github.com/acme/summary-branch/blob/main/docs/guide.md` |
+summary:calls | content main|docs, content master|docs/guide.md, refs heads/master/, refs tags/master/, content main|docs/guide.md
 jekyll:10 | /blog/2024/01/15/hello-world | ok
 jekyll:11 | /blog/2024/01/15/hello-world.html#section | ok
 jekyll:12 | /blog/old/hello.html | ok

@@ -9,12 +9,14 @@
  * a local HTTP test server.
  */
 
+import * as fs from 'fs';
 import * as http from 'http';
+import * as os from 'os';
 import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
 import { checkLinks, refPathCandidates } from '../src/check';
 import { Config, CheckResult, LinkInfo } from '../src/types';
-import { mergeResultsForLine } from '../src/report';
+import { mergeResultsForLine, reportSummary } from '../src/report';
 
 /**
  * Start a local HTTP server that serves various redirect scenarios.
@@ -483,6 +485,112 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
 }
 
 /**
+ * Verify the step summary and the notices of a run outside a pull request.
+ * Each kind of suggestion gets its own section and notice, and same-org
+ * suggestions show the suggested URL.
+ */
+async function runSummaryTest(repoRoot: string): Promise<void> {
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'acme',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: true,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: [],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
+  };
+
+  const calls: string[] = [];
+  const octokit = {
+    rest: {
+      repos: {
+        get: async () => ({ data: { default_branch: 'main', private: false } }),
+        getContent: async ({ ref, path: filePath }: { ref: string; path: string }) => {
+          calls.push(`content ${ref}|${filePath}`);
+          if (ref !== 'main') throw Object.assign(new Error(`No commit found for the ref ${ref}`), { status: 404 });
+          if (filePath === 'docs') return { data: [] };
+          if (filePath === 'docs/guide.md') return { data: { type: 'file' } };
+          throw Object.assign(new Error('Not Found'), { status: 404 });
+        },
+      },
+      git: {
+        listMatchingRefs: async ({ ref }: { ref: string }) => {
+          calls.push(`refs ${ref}`);
+          return { data: [] };
+        },
+      },
+    },
+  };
+
+  // One link for each kind of suggestion outside the redirects.
+  const urls = [
+    '../README.md',
+    'https://github.com/acme/hyperhawk/blob/main/README.md',
+    'https://github.com/acme/summary-blob/blob/main/docs',
+    'https://github.com/acme/summary-branch/blob/master/docs/guide.md',
+  ];
+  const links = urls.map((url, i): LinkInfo => ({
+    url,
+    text: 'link',
+    filePath: 'tests/test-document.md',
+    line: i + 1,
+    lineContent: `[link](${url})`,
+    type: url.startsWith('https://') ? 'same-org' : 'internal',
+  }));
+
+  let results: CheckResult[] = [];
+  await withoutDebugOutput(async () => {
+    results = await checkLinks(links, config, octokit as any);
+  });
+
+  // reportSummary appends to the file in GITHUB_STEP_SUMMARY.
+  const summaryFile = path.join(os.tmpdir(), `hyperhawk-summary-${process.pid}.md`);
+  fs.writeFileSync(summaryFile, '');
+  const savedSummaryFile = process.env.GITHUB_STEP_SUMMARY;
+  process.env.GITHUB_STEP_SUMMARY = summaryFile;
+
+  // Keep the ::notice:: lines from @actions/core, in the order of the run.
+  const notices: string[] = [];
+  const original = process.stdout.write.bind(process.stdout);
+  process.stdout.write = function (chunk: any, ...args: any[]) {
+    if (typeof chunk === 'string' && chunk.startsWith('::notice')) {
+      notices.push(chunk.trim());
+      return true;
+    }
+    return (original as any)(chunk, ...args);
+  } as any;
+  try {
+    await reportSummary(results);
+  } finally {
+    process.stdout.write = original;
+    if (savedSummaryFile === undefined) {
+      delete process.env.GITHUB_STEP_SUMMARY;
+    } else {
+      process.env.GITHUB_STEP_SUMMARY = savedSummaryFile;
+    }
+  }
+  const summary = fs.readFileSync(summaryFile, 'utf8');
+  fs.unlinkSync(summaryFile);
+
+  const lines = [
+    ...notices.map(n => `summary:notice | ${n}`),
+    ...summary.trimEnd().split('\n').map(l => `summary:file | ${l}`.trimEnd()),
+    `summary:calls | ${calls.join(', ')}`,
+  ];
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+/**
  * Verify site-generator: jekyll. Root-relative links in tests/jekyll-site/links.md
  * point to pages Jekyll generates at build time (posts, collections, permalinks,
  * redirect_from, baseurl) and to pages it doesn't generate (drafts, unpublished
@@ -605,6 +713,7 @@ async function main(): Promise<void> {
     await runRelativeControlsTest(repoRoot, testFile);
     runRefPathCandidatesTest();
     await runSameOrgApiTest(repoRoot);
+    await runSummaryTest(repoRoot);
     await runJekyllTest(repoRoot);
     await runJekyllConfigTest(repoRoot);
   } finally {

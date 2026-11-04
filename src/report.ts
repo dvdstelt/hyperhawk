@@ -316,11 +316,12 @@ async function reportPR(
 /**
  * Report via step summary and warning/notice annotations (non-PR context).
  */
-function reportSummary(results: CheckResult[]): void {
+export async function reportSummary(results: CheckResult[]): Promise<void> {
   const broken = results.filter(r => !r.ok);
   const allImprovements = results.filter(r => r.ok && r.suggestionOnly);
   const redirectSuggestions = allImprovements.filter(r => r.link.type === 'external');
-  const rootRelativeSuggestions = allImprovements.filter(r => r.link.type !== 'external');
+  const rootRelativeSuggestions = allImprovements.filter(r => r.link.type === 'internal');
+  const sameOrgSuggestions = allImprovements.filter(r => r.link.type === 'same-org');
   const total = results.length;
 
   const summary: string[] = [
@@ -330,6 +331,7 @@ function reportSummary(results: CheckResult[]): void {
     `- **Broken links found:** ${broken.length}`,
     `- **Redirect suggestions:** ${redirectSuggestions.length}`,
     `- **Root-relative suggestions:** ${rootRelativeSuggestions.length}`,
+    `- **Same-org link suggestions:** ${sameOrgSuggestions.length}`,
     '',
   ];
 
@@ -380,11 +382,28 @@ function reportSummary(results: CheckResult[]): void {
     );
   }
 
+  if (sameOrgSuggestions.length > 0) {
+    const rows = sameOrgSuggestions
+      .map(r => `| \`${r.link.filePath}\` | ${r.link.line} | \`${r.link.url}\` | \`${r.correctedUrl}\` |`)
+      .join('\n');
+    summary.push(
+      '### Same-Org Link Suggestions',
+      '',
+      'These GitHub links work today, but a better URL exists.',
+      'A link to this repository can be a local path. A link to another repository can use its default branch, or /tree/ for a folder.',
+      '',
+      '| File | Line | Current URL | Suggested URL |',
+      '|------|------|-------------|---------------|',
+      rows,
+      ''
+    );
+  }
+
   if (broken.length === 0 && allImprovements.length === 0) {
     summary.push('All links are valid!');
   }
 
-  core.summary.addRaw(summary.join('\n')).write().catch(err => {
+  await core.summary.addRaw(summary.join('\n')).write().catch(err => {
     core.warning(`Failed to write step summary: ${String(err)}`);
   });
 
@@ -409,6 +428,14 @@ function reportSummary(results: CheckResult[]): void {
       file: result.link.filePath,
       startLine: result.link.line,
       title: 'Use Root-Relative Link',
+    });
+  }
+
+  for (const result of sameOrgSuggestions) {
+    core.notice(`Same-org link can be updated: ${result.link.url} -> ${result.correctedUrl}`, {
+      file: result.link.filePath,
+      startLine: result.link.line,
+      title: 'Update Same-Org Link',
     });
   }
 }
@@ -445,7 +472,7 @@ export async function report(results: CheckResult[], octokit: Octokit, config: C
 
     await reportPR(results, octokit, diffLines, commitSha, config);
   } else {
-    reportSummary(results);
+    await reportSummary(results);
   }
 
   core.info(`Link check complete: ${results.length} checked, ${broken.length} broken`);
