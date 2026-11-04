@@ -276,7 +276,10 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
 
   // Root-relative links in a Jekyll site may point to pages generated at
   // build time (posts, collections, redirects) rather than files on disk.
-  if (isRootRelative && config.siteGenerator === 'jekyll' && getJekyllSite(config.siteRoot).hasRoute(decodedPath)) {
+  // Only files inside the site root are served by Jekyll, so links in other
+  // files (such as a README next to a docs site) resolve on GitHub instead.
+  const sourceInSite = !path.relative(config.siteRoot, path.join(config.repoRoot, link.filePath)).startsWith('..');
+  if (isRootRelative && config.siteGenerator === 'jekyll' && sourceInSite && getJekyllSite(config.siteRoot).hasRoute(decodedPath)) {
     return { link, ok: true };
   }
 

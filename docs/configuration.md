@@ -147,7 +147,7 @@ Links are matched the way GitHub Pages serves files: `/about`, `/about.html`, an
 
 Pages created by plugins at build time, such as pagination or tag archives, aren't known to HyperHawk. Use `ignore-patterns` for those.
 
-If the site sources aren't at the repository root, for example when GitHub Pages publishes from the `docs` folder, set `site-root`:
+If the site sources aren't at the repository root, for example when GitHub Pages publishes from the `docs` folder, set `site-root`. Only links in files inside `site-root` are checked against the generated pages. A root-relative link in a file outside it, such as the repository README, resolves on GitHub and not on the site.
 
 ```yaml
 - uses: dvdstelt/hyperhawk@v1

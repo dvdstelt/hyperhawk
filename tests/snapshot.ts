@@ -512,6 +512,12 @@ async function runJekyllTest(repoRoot: string): Promise<void> {
     .map(r => `jekyll:${r.link.line} | ${r.link.url} | ${r.ok ? 'ok' : 'broken'}`)
     .sort();
 
+  // Links in a file outside the site root don't point to generated pages.
+  const outside = extractLinks(path.join(repoRoot, 'tests', 'jekyll-outside.md'), config);
+  for (const r of await checkLinks(outside, config, null as any)) {
+    lines.push(`jekyll-outside:${r.link.line} | ${r.link.url} | ${r.ok ? 'ok' : 'broken'}`);
+  }
+
   process.stdout.write(lines.join('\n') + '\n');
 }
 

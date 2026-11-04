@@ -156,3 +156,4 @@ jekyll:47 | /blog/_drafts/draft.md | broken
 jekyll:48 | /blog/_notes/note.md | broken
 jekyll:49 | /blog/files | broken
 jekyll:9 | /blog/2024/01/15/hello-world.html | ok
+jekyll-outside:5 | /blog/about.html | broken
