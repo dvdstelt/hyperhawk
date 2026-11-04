@@ -2,6 +2,9 @@ export type LinkType = 'internal' | 'same-org' | 'external';
 
 export type SiteGenerator = 'none' | 'jekyll';
 
+// Features that the exclude input can turn off for some files.
+export type ExcludableFeature = 'suggest-local-path';
+
 export interface LinkInfo {
   url: string;
   text: string;
@@ -40,4 +43,5 @@ export interface Config {
   reportOnlyChanged: boolean;
   siteGenerator: SiteGenerator;
   siteRoot: string;  // absolute path of the site sources
+  exclude: Partial<Record<ExcludableFeature, string[]>>; // glob patterns of the files where each feature is off
 }

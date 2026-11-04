@@ -6,6 +6,7 @@ import * as path from 'path';
 import { Config, SiteGenerator } from './types';
 import { extractLinks, filterIgnored } from './extract';
 import { checkLinks } from './check';
+import { parseExclude } from './exclude';
 import { report } from './report';
 
 async function getChangedMdFiles(octokit: ReturnType<typeof getOctokit>): Promise<string[]> {
@@ -86,6 +87,7 @@ async function run(): Promise<void> {
     const skipCodeBlocks = core.getInput('skip-code-blocks') === 'true';
     const reportOnlyChanged = core.getInput('report-only-changed') === 'true';
     const siteGenerator = parseSiteGenerator(core.getInput('site-generator'));
+    const exclude = parseExclude(core.getInput('exclude'));
 
     const repoRoot = process.env['GITHUB_WORKSPACE'] || process.cwd();
     const [owner, repo] = (process.env['GITHUB_REPOSITORY'] || '/').split('/');
@@ -115,6 +117,7 @@ async function run(): Promise<void> {
       reportOnlyChanged,
       siteGenerator,
       siteRoot,
+      exclude,
     };
 
     const octokit = getOctokit(token);

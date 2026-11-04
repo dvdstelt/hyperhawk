@@ -4,6 +4,7 @@ import * as core from '@actions/core';
 import { getOctokit } from '@actions/github';
 import { LinkInfo, CheckResult, Config } from './types';
 import { JekyllSite, loadJekyllSite } from './jekyll';
+import { isExcluded } from './exclude';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
@@ -395,11 +396,13 @@ function relativeLinkDepth(relativePath: string): number {
  * Suggest rewriting a full GitHub URL that points to the current repo
  * as a local path. Uses the same convention as checkInternal: same-folder
  * files use a bare filename, everything else uses a root-relative path.
+ *
+ * Issue templates and files excluded from suggest-local-path keep full URLs:
+ * the target is still checked on disk, but a valid link gets no suggestion
+ * and a broken one gets a corrected full URL.
  */
 function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): CheckResult {
-  if (isIssueTemplate(link.filePath)) {
-    return { link, ok: true, suggestionOnly: true };
-  }
+  const keepFullUrl = isIssueTemplate(link.filePath) || isExcluded(config, 'suggest-local-path', link.filePath);
   // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts] or [owner, repo, ...]
   const hasFilePath = parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree');
 
@@ -412,7 +415,8 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   // The ref can contain slashes. Use the first split whose file exists here,
   // or the slash-free split if none does.
   const splits = refPathCandidates(parts.slice(3)).filter(s => s.filePath !== '');
-  const filePath = (splits.find(s => fs.existsSync(path.join(config.repoRoot, s.filePath))) ?? splits[0]).filePath;
+  const split = splits.find(s => fs.existsSync(path.join(config.repoRoot, s.filePath))) ?? splits[0];
+  const filePath = split.filePath;
   const resolvedPath = path.join(config.repoRoot, filePath);
   const exists = fs.existsSync(resolvedPath);
 
@@ -461,6 +465,18 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
       }
     }
 
+    if (keepFullUrl) {
+      const correctedUrl = correctedAbs ? toFullUrl(link.url, parts, split.ref, correctedAbs, config.repoRoot) : undefined;
+      return {
+        link,
+        ok: false,
+        error: `File not found: ${resolvedPath}`,
+        correctedUrl,
+        suggestion: correctedUrl ? link.lineContent.trimEnd().replace(link.url, correctedUrl) : undefined,
+        isFuzzyMatch: isFuzzy && !!correctedAbs,
+      };
+    }
+
     const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
     return {
       link,
@@ -472,6 +488,10 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
     };
   }
 
+  if (keepFullUrl) {
+    return { link, ok: true };
+  }
+
   const suggestion = link.lineContent.trimEnd().replace(link.url, localUrl);
   return {
     link,
@@ -480,6 +500,17 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
     correctedUrl: localUrl,
     suggestionOnly: true,
   };
+}
+
+/**
+ * Point a full GitHub URL to the current repo at another file, on the same
+ * ref and with the same query and fragment.
+ */
+function toFullUrl(url: string, parts: string[], ref: string, absPath: string, repoRoot: string): string {
+  const fullUrl = new URL(url);
+  // parts[0..2] are owner, repo, and 'blob' or 'tree'
+  fullUrl.pathname = '/' + [...parts.slice(0, 3), ref].join('/') + toRootRelative(absPath, repoRoot);
+  return fullUrl.toString();
 }
 
 // Upper bound on the number of slash-separated segments tried as a ref.

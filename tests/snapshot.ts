@@ -13,6 +13,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
 import { checkLinks, refPathCandidates } from '../src/check';
+import { parseExclude } from '../src/exclude';
 import { Config, CheckResult, LinkInfo } from '../src/types';
 import { mergeResultsForLine } from '../src/report';
 
@@ -204,6 +205,7 @@ async function runIssueTemplateTest(repoRoot: string, testFile: string): Promise
     reportOnlyChanged: false,
     siteGenerator: 'none',
     siteRoot: repoRoot,
+    exclude: {},
   };
 
   const links = extractLinks(testFile, config);
@@ -256,6 +258,7 @@ async function runCodeBlockTest(repoRoot: string, testFile: string): Promise<voi
     reportOnlyChanged: false,
     siteGenerator: 'none',
     siteRoot: repoRoot,
+    exclude: {},
   };
 
   const allLinks = extractLinks(testFile, config);
@@ -298,6 +301,7 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
     reportOnlyChanged: false,
     siteGenerator: 'none',
     siteRoot: repoRoot,
+    exclude: {},
   };
 
   const internalLinks = extractLinks(testFile, base).filter(l => l.type === 'internal');
@@ -407,6 +411,7 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     reportOnlyChanged: false,
     siteGenerator: 'none',
     siteRoot: repoRoot,
+    exclude: {},
   };
 
   const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
@@ -503,6 +508,7 @@ async function runJekyllTest(repoRoot: string): Promise<void> {
     reportOnlyChanged: false,
     siteGenerator: 'jekyll',
     siteRoot,
+    exclude: {},
   };
 
   const links = extractLinks(path.join(siteRoot, 'links.md'), config);
@@ -552,6 +558,7 @@ async function runJekyllConfigTest(repoRoot: string): Promise<void> {
       reportOnlyChanged: false,
       siteGenerator: 'jekyll',
       siteRoot: path.join(repoRoot, c.site),
+      exclude: {},
     };
     const link: LinkInfo = {
       url: c.url,
@@ -586,6 +593,81 @@ async function runJekyllConfigTest(repoRoot: string): Promise<void> {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
+/**
+ * Verify the exclude input for suggest-local-path. In an excluded file, full
+ * URLs to the current repository stay full URLs: a valid link gets no
+ * local-path suggestion, and a broken one gets a corrected full URL. The same
+ * links in a file that is not excluded get local-path suggestions.
+ */
+async function runExcludeTest(repoRoot: string): Promise<void> {
+  const draftFile = path.join(repoRoot, 'tests', 'issue-draft.md');
+  const base: Config = {
+    token: '',
+    repoRoot,
+    owner: 'dvdstelt',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: true,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: ['tests/issue-draft.md'],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
+    exclude: {},
+  };
+
+  const links = extractLinks(draftFile, base);
+
+  const summarize = async (prefix: string, config: Config): Promise<void> => {
+    let results: CheckResult[] = [];
+    await withoutDebugOutput(async () => {
+      results = await checkLinks(links, config, null as any);
+    });
+    const lines = results
+      .map(r => {
+        const status = r.ok ? (r.suggestionOnly ? 'suggestion' : 'ok') : 'broken';
+        let detail = '';
+        if (r.correctedUrl) {
+          detail = ` -> ${r.correctedUrl}`;
+        } else if (!r.ok) {
+          detail = ` | ${(r.error ?? 'unknown').replaceAll(repoRoot, '<root>')}`;
+        }
+        return `${prefix}:${r.link.line} | ${r.link.url} | ${status}${detail}`;
+      })
+      .sort();
+    process.stdout.write(lines.join('\n') + '\n');
+  };
+
+  await summarize('exclude', { ...base, exclude: { 'suggest-local-path': ['tests/issue-*.md'] } });
+  await summarize('noexclude', base);
+}
+
+/**
+ * Verify how the exclude input is parsed. A problem gives a warning and the
+ * affected part is ignored, so the warnings are part of the output.
+ */
+function runExcludeParseTest(): void {
+  const inputs: { label: string; raw: string }[] = [
+    { label: 'empty', raw: '' },
+    { label: 'list', raw: "suggest-local-path:\n  - issue-drafts/**\n  - '**/drafts/**'" },
+    { label: 'single pattern', raw: 'suggest-local-path: issue-drafts/**' },
+    { label: 'unknown feature', raw: 'suggest-local-paths:\n  - issue-drafts/**' },
+    { label: 'unquoted star', raw: 'suggest-local-path:\n  - **/drafts/**' },
+    { label: 'not a map', raw: '- issue-drafts/**' },
+    { label: 'not patterns', raw: 'suggest-local-path:\n  - 42' },
+  ];
+  for (const { label, raw } of inputs) {
+    const exclude = parseExclude(raw);
+    process.stdout.write(`excludeparse:${label} | ${JSON.stringify(exclude)}\n`);
+  }
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -602,6 +684,8 @@ async function main(): Promise<void> {
     await runSameOrgApiTest(repoRoot);
     await runJekyllTest(repoRoot);
     await runJekyllConfigTest(repoRoot);
+    await runExcludeTest(repoRoot);
+    runExcludeParseTest();
   } finally {
     await closeServer();
   }
@@ -646,6 +730,7 @@ async function runTests(repoRoot: string, testFile: string, baseUrl: string): Pr
     reportOnlyChanged: false,
     siteGenerator: 'none',
     siteRoot: repoRoot,
+    exclude: {},
   };
 
   const links = extractLinks(testFile, config);

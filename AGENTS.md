@@ -15,6 +15,7 @@ src/
   types.ts               <- shared interfaces (LinkInfo, CheckResult, Config)
   extract.ts             <- link extraction from markdown files
   check.ts               <- link verification (internal / same-org / external)
+  exclude.ts             <- exclude input: parsing and per-file feature checks
   report.ts              <- PR review comments and step summary reporting
 dist/
   index.js               <- ncc-bundled output; committed and kept in sync with src/
