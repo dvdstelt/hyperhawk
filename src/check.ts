@@ -398,7 +398,7 @@ function relativeLinkDepth(relativePath: string): number {
  */
 function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): CheckResult {
   if (isIssueTemplate(link.filePath)) {
-    return { link, ok: true, suggestionOnly: true };
+    return { link, ok: true };
   }
   // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts] or [owner, repo, ...]
   const hasFilePath = parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree');
@@ -406,7 +406,7 @@ function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): Chec
   if (!hasFilePath) {
     // Just a repo URL (e.g. https://github.com/owner/repo or .../issues/1)
     // No local path equivalent; mark ok with no suggestion
-    return { link, ok: true, suggestionOnly: true };
+    return { link, ok: true };
   }
 
   // The ref can contain slashes. Use the first split whose file exists here,

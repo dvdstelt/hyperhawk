@@ -387,6 +387,11 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     { label: 'branch root', path: '/tree/release/1.0' },
     { label: 'branch root as blob', path: '/blob/release/1.0' },
     { label: 'self-repo slash ref', path: '/blob/release/1.0/README.md', self: true },
+    // Self-repo links without a file path have no local path to suggest.
+    { label: 'self-repo root', path: '/', self: true },
+    { label: 'self-repo branch root', path: '/tree/main', self: true },
+    { label: 'self-repo issues', path: '/issues', self: true },
+    { label: 'self-repo pull request', path: '/pull/1', self: true },
   ];
 
   const config: Config = {

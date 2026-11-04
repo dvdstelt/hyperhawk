@@ -59,7 +59,7 @@ extract:67 | https://en.wikipedia.org/wiki/.NET_Framework_(software)
 extract:71 | https://github.com/dvdstelt
 ::debug::[same-org] Checking https://github.com/dvdstelt/hyperhawk/blob/main/README.md
 ::debug::[same-org] URL points to current repo, suggesting local path: https://github.com/dvdstelt/hyperhawk/blob/main/README.md
-.github/ISSUE_TEMPLATE/bug_report.md:13 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | suggestion
+.github/ISSUE_TEMPLATE/bug_report.md:13 | https://github.com/dvdstelt/hyperhawk/blob/main/README.md | ok
 .github/ISSUE_TEMPLATE/bug_report.md:15 | ../docs/configuration.md | broken -> /docs/configuration.md
 codeblock:tests/test-document.md:82 | ../READM.md
 reloff:11 | ../release.ps | ok
@@ -124,6 +124,10 @@ sameorg:ref lookup fails, file missing | /blob/feature/x/docs/guide.md | broken 
 sameorg:branch root | /tree/release/1.0 | ok | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:branch root as blob | /blob/release/1.0 | suggestion -> /tree/release/1.0 | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:self-repo slash ref | /blob/release/1.0/README.md | suggestion -> /README.md | (no API calls)
+sameorg:self-repo root | / | ok | (no API calls)
+sameorg:self-repo branch root | /tree/main | ok | (no API calls)
+sameorg:self-repo issues | /issues | ok | (no API calls)
+sameorg:self-repo pull request | /pull/1 | ok | (no API calls)
 jekyll:10 | /blog/2024/01/15/hello-world | ok
 jekyll:11 | /blog/2024/01/15/hello-world.html#section | ok
 jekyll:12 | /blog/old/hello.html | ok
