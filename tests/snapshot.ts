@@ -202,6 +202,8 @@ async function runIssueTemplateTest(repoRoot: string, testFile: string): Promise
     concurrency: 1,
     skipCodeBlocks: false,
     reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
   };
 
   const links = extractLinks(testFile, config);
@@ -252,6 +254,8 @@ async function runCodeBlockTest(repoRoot: string, testFile: string): Promise<voi
     concurrency: 1,
     skipCodeBlocks: true,
     reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
   };
 
   const allLinks = extractLinks(testFile, config);
@@ -292,6 +296,8 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
     concurrency: 1,
     skipCodeBlocks: false,
     reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
   };
 
   const internalLinks = extractLinks(testFile, base).filter(l => l.type === 'internal');
@@ -399,6 +405,8 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
     concurrency: 1,
     skipCodeBlocks: false,
     reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
   };
 
   const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
@@ -469,6 +477,115 @@ async function runSameOrgApiTest(repoRoot: string): Promise<void> {
   process.stdout.write(lines.join('\n') + '\n');
 }
 
+/**
+ * Verify site-generator: jekyll. Root-relative links in tests/jekyll-site/links.md
+ * point to pages Jekyll generates at build time (posts, collections, permalinks,
+ * redirect_from, baseurl) and to pages it doesn't generate (drafts, unpublished
+ * posts, collections without output, excluded folders).
+ */
+async function runJekyllTest(repoRoot: string): Promise<void> {
+  const siteRoot = path.join(repoRoot, 'tests', 'jekyll-site');
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'dvdstelt',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: false,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: ['tests/jekyll-site/links.md'],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+    siteGenerator: 'jekyll',
+    siteRoot,
+  };
+
+  const links = extractLinks(path.join(siteRoot, 'links.md'), config);
+  const results = await checkLinks(links, config, null as any);
+
+  const lines = results
+    .map(r => `jekyll:${r.link.line} | ${r.link.url} | ${r.ok ? 'ok' : 'broken'}`)
+    .sort();
+
+  // Links in a file outside the site root don't point to generated pages.
+  const outside = extractLinks(path.join(repoRoot, 'tests', 'jekyll-outside.md'), config);
+  for (const r of await checkLinks(outside, config, null as any)) {
+    lines.push(`jekyll-outside:${r.link.line} | ${r.link.url} | ${r.ok ? 'ok' : 'broken'}`);
+  }
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+/**
+ * Verify how a Jekyll site with an unusual config is read. Each line ends with
+ * the warnings that HyperHawk writes, or (no warnings).
+ */
+async function runJekyllConfigTest(repoRoot: string): Promise<void> {
+  const cases: { label: string; site: string; url: string }[] = [
+    { label: 'config in _config.yaml', site: 'tests/jekyll-config-yaml', url: '/yaml/about.html' },
+    { label: 'missing site root', site: 'tests/no-such-site', url: '/about.html' },
+    { label: 'config that cannot be parsed', site: 'tests/jekyll-config-bad', url: '/about.html' },
+  ];
+
+  const lines: string[] = [];
+  for (const c of cases) {
+    const config: Config = {
+      token: '',
+      repoRoot,
+      owner: 'dvdstelt',
+      repo: 'hyperhawk',
+      strict: false,
+      checkExternal: false,
+      checkSameOrg: false,
+      checkRelative: true,
+      relativeSuggestionDepth: 0,
+      ignorePatterns: [],
+      timeout: 5000,
+      filePatterns: [],
+      concurrency: 1,
+      skipCodeBlocks: false,
+      reportOnlyChanged: false,
+      siteGenerator: 'jekyll',
+      siteRoot: path.join(repoRoot, c.site),
+    };
+    const link: LinkInfo = {
+      url: c.url,
+      text: c.label,
+      filePath: `${c.site}/about.md`,
+      line: 1,
+      lineContent: `[${c.label}](${c.url})`,
+      type: 'internal',
+    };
+
+    // Keep the ::warning:: lines from @actions/core, with the repo path made stable.
+    const warnings: string[] = [];
+    const original = process.stdout.write.bind(process.stdout);
+    process.stdout.write = function (chunk: any, ...args: any[]) {
+      if (typeof chunk === 'string' && chunk.startsWith('::warning::')) {
+        warnings.push(chunk.trim().replaceAll(repoRoot, '<root>'));
+        return true;
+      }
+      return (original as any)(chunk, ...args);
+    } as any;
+    let result: CheckResult | undefined;
+    try {
+      [result] = await checkLinks([link], config, null as any);
+    } finally {
+      process.stdout.write = original;
+    }
+
+    const status = result!.ok ? 'ok' : 'broken';
+    lines.push(`jekyllconfig:${c.label} | ${c.url} | ${status} | ${warnings.join(', ') || '(no warnings)'}`);
+  }
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -483,6 +600,8 @@ async function main(): Promise<void> {
     await runRelativeControlsTest(repoRoot, testFile);
     runRefPathCandidatesTest();
     await runSameOrgApiTest(repoRoot);
+    await runJekyllTest(repoRoot);
+    await runJekyllConfigTest(repoRoot);
   } finally {
     await closeServer();
   }
@@ -525,6 +644,8 @@ async function runTests(repoRoot: string, testFile: string, baseUrl: string): Pr
     concurrency: 1,
     skipCodeBlocks: false,
     reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
   };
 
   const links = extractLinks(testFile, config);

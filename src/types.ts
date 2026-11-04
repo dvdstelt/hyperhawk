@@ -1,5 +1,7 @@
 export type LinkType = 'internal' | 'same-org' | 'external';
 
+export type SiteGenerator = 'none' | 'jekyll';
+
 export interface LinkInfo {
   url: string;
   text: string;
@@ -36,4 +38,6 @@ export interface Config {
   concurrency: number;
   skipCodeBlocks: boolean;
   reportOnlyChanged: boolean;
+  siteGenerator: SiteGenerator;
+  siteRoot: string;  // absolute path of the site sources
 }

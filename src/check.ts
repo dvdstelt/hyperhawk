@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as core from '@actions/core';
 import { getOctokit } from '@actions/github';
 import { LinkInfo, CheckResult, Config } from './types';
+import { JekyllSite, loadJekyllSite } from './jekyll';
 
 type Octokit = ReturnType<typeof getOctokit>;
 
@@ -105,6 +106,18 @@ function collectFiles(dir: string, results: string[]): void {
       results.push(fullPath);
     }
   }
+}
+
+// Lazily built route table for Jekyll sites, per site root
+const jekyllSiteCache = new Map<string, JekyllSite>();
+
+function getJekyllSite(siteRoot: string): JekyllSite {
+  let site = jekyllSiteCache.get(siteRoot);
+  if (!site) {
+    site = loadJekyllSite(siteRoot);
+    jekyllSiteCache.set(siteRoot, site);
+  }
+  return site;
 }
 
 function getAllRepoFiles(repoRoot: string): string[] {
@@ -260,6 +273,15 @@ async function checkInternal(link: LinkInfo, config: Config): Promise<CheckResul
         return { link, ok: true, suggestion, suggestionOnly: true };
       }
     }
+    return { link, ok: true };
+  }
+
+  // Root-relative links in a Jekyll site may point to pages generated at
+  // build time (posts, collections, redirects) rather than files on disk.
+  // Only files inside the site root are served by Jekyll, so links in other
+  // files (such as a README next to a docs site) resolve on GitHub instead.
+  const sourceInSite = !path.relative(config.siteRoot, path.join(config.repoRoot, link.filePath)).startsWith('..');
+  if (isRootRelative && config.siteGenerator === 'jekyll' && sourceInSite && getJekyllSite(config.siteRoot).hasRoute(decodedPath)) {
     return { link, ok: true };
   }
 

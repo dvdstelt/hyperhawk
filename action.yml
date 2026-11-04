@@ -62,6 +62,20 @@ inputs:
       producing check warning annotations.
     required: false
     default: 'false'
+  site-generator:
+    description: >
+      Static site generator that builds the repository, so root-relative links
+      to generated pages can be verified. Supported values: none, jekyll.
+      With jekyll, links like /2024/01/15/my-post.html are resolved against
+      posts, pages, collections, permalinks, and redirect_from.
+    required: false
+    default: 'none'
+  site-root:
+    description: >
+      Folder containing the site sources (e.g. docs for GitHub Pages sites
+      published from /docs). Only used when site-generator is set.
+    required: false
+    default: '.'
   cross-repo-token:
     description: >
       Optional separate token used only for same-org GitHub link checks.

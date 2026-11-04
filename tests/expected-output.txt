@@ -124,3 +124,40 @@ sameorg:ref lookup fails, file missing | /blob/feature/x/docs/guide.md | broken 
 sameorg:branch root | /tree/release/1.0 | ok | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:branch root as blob | /blob/release/1.0 | suggestion -> /tree/release/1.0 | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:self-repo slash ref | /blob/release/1.0/README.md | suggestion -> /README.md | (no API calls)
+jekyll:10 | /blog/2024/01/15/hello-world | ok
+jekyll:11 | /blog/2024/01/15/hello-world.html#section | ok
+jekyll:12 | /blog/old/hello.html | ok
+jekyll:13 | /blog/news/2024/02/01/with-category.html | ok
+jekyll:14 | /blog/travel/2024/03/10/trip.html | ok
+jekyll:15 | /blog/custom-url/ | ok
+jekyll:16 | /blog/talks/intro.html | ok
+jekyll:17 | /blog/cookbook/pasta/ | ok
+jekyll:18 | /blog/about.html | ok
+jekyll:19 | /blog/about | ok
+jekyll:20 | /blog/docs/ | ok
+jekyll:21 | /blog/docs/index.html | ok
+jekyll:22 | /blog/files/notes.txt | ok
+jekyll:26 | /blog/2024/05/01/unpublished.html | broken
+jekyll:27 | /blog/2024/01/16/hello-world.html | broken
+jekyll:28 | /blog/draft.html | broken
+jekyll:29 | /blog/notes/note.html | broken
+jekyll:30 | /blog/excluded/page.html | broken
+jekyll:31 | /2024/01/15/hello-world.html | broken
+jekyll:35 | /blog/2024/06/20/dated.html | ok
+jekyll:36 | /blog/2024/06/01/dated.html | broken
+jekyll:37 | /blog/2024/07/02/offset.html | ok
+jekyll:38 | /blog/2024/07/01/offset.html | broken
+jekyll:39 | /blog/2024/08/02/utc.html | ok
+jekyll:40 | /blog/2024/08/01/utc.html | broken
+jekyll:44 | /blog/excluded | broken
+jekyll:45 | /blog/excluded/page.md | broken
+jekyll:46 | /blog/about.md | broken
+jekyll:47 | /blog/_drafts/draft.md | broken
+jekyll:48 | /blog/_notes/note.md | broken
+jekyll:49 | /blog/files | broken
+jekyll:53 | /blog/dist/guide.html | ok
+jekyll:9 | /blog/2024/01/15/hello-world.html | ok
+jekyll-outside:5 | /blog/about.html | broken
+jekyllconfig:config in _config.yaml | /yaml/about.html | ok | (no warnings)
+jekyllconfig:missing site root | /about.html | broken | ::warning::site-root <root>/tests/no-such-site is not a folder, so links to generated Jekyll pages are not verified.
+jekyllconfig:config that cannot be parsed | /about.html | ok | ::warning::Cannot parse <root>/tests/jekyll-config-bad/_config.yml, so the Jekyll defaults are used: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1

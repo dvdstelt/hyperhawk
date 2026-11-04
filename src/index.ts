@@ -3,7 +3,7 @@ import { context, getOctokit } from '@actions/github';
 import * as glob from '@actions/glob';
 import minimatch from 'minimatch';
 import * as path from 'path';
-import { Config } from './types';
+import { Config, SiteGenerator } from './types';
 import { extractLinks, filterIgnored } from './extract';
 import { checkLinks } from './check';
 import { report } from './report';
@@ -85,9 +85,11 @@ async function run(): Promise<void> {
     const strict = strictInput === 'true' || strictEnv === 'true';
     const skipCodeBlocks = core.getInput('skip-code-blocks') === 'true';
     const reportOnlyChanged = core.getInput('report-only-changed') === 'true';
+    const siteGenerator = parseSiteGenerator(core.getInput('site-generator'));
 
     const repoRoot = process.env['GITHUB_WORKSPACE'] || process.cwd();
     const [owner, repo] = (process.env['GITHUB_REPOSITORY'] || '/').split('/');
+    const siteRoot = path.resolve(repoRoot, core.getInput('site-root') || '.');
 
     const ignorePatterns: RegExp[] = ignorePatternsInput
       ? ignorePatternsInput.split(',').map(p => new RegExp(p.trim()))
@@ -111,6 +113,8 @@ async function run(): Promise<void> {
       concurrency,
       skipCodeBlocks,
       reportOnlyChanged,
+      siteGenerator,
+      siteRoot,
     };
 
     const octokit = getOctokit(token);
@@ -208,6 +212,18 @@ function parseRelativeSuggestionDepth(raw: string): number {
     return MAX_RELATIVE_SUGGESTION_DEPTH;
   }
   return value;
+}
+
+/**
+ * Parse the site-generator input. Unknown values fall back to 'none' with
+ * a warning, so a typo never changes how links are checked silently.
+ */
+function parseSiteGenerator(raw: string): SiteGenerator {
+  const value = raw.trim().toLowerCase();
+  if (!value || value === 'none') return 'none';
+  if (value === 'jekyll') return 'jekyll';
+  core.warning(`Unknown site-generator "${raw}"; supported values are "jekyll" and "none". Falling back to "none".`);
+  return 'none';
 }
 
 async function globFiles(patterns: string[], repoRoot: string): Promise<string[]> {
