@@ -528,6 +528,8 @@ async function runJekyllTest(repoRoot: string): Promise<void> {
 async function runJekyllConfigTest(repoRoot: string): Promise<void> {
   const cases: { label: string; site: string; url: string }[] = [
     { label: 'config in _config.yaml', site: 'tests/jekyll-config-yaml', url: '/yaml/about.html' },
+    { label: 'missing site root', site: 'tests/no-such-site', url: '/about.html' },
+    { label: 'config that cannot be parsed', site: 'tests/jekyll-config-bad', url: '/about.html' },
   ];
 
   const lines: string[] = [];

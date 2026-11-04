@@ -159,3 +159,5 @@ jekyll:53 | /blog/dist/guide.html | ok
 jekyll:9 | /blog/2024/01/15/hello-world.html | ok
 jekyll-outside:5 | /blog/about.html | broken
 jekyllconfig:config in _config.yaml | /yaml/about.html | ok | (no warnings)
+jekyllconfig:missing site root | /about.html | broken | ::warning::site-root <root>/tests/no-such-site is not a folder, so links to generated Jekyll pages are not verified.
+jekyllconfig:config that cannot be parsed | /about.html | ok | ::warning::Cannot parse <root>/tests/jekyll-config-bad/_config.yml, so the Jekyll defaults are used: Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1

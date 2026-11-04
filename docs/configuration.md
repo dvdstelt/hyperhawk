@@ -156,3 +156,5 @@ If the site sources aren't at the repository root, for example when GitHub Pages
     site-generator: jekyll
     site-root: docs
 ```
+
+HyperHawk reads `_config.yml`, or `_config.yaml` when there is no `_config.yml`. If `site-root` is not a folder, or the config file can't be parsed, the run log shows a warning.

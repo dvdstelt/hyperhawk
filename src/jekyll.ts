@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as core from '@actions/core';
 import { parse as parseYaml } from 'yaml';
 
 /**
@@ -174,9 +175,14 @@ function resolvePermalinkTemplate(permalink: unknown, fallback: string): string 
  */
 export function loadJekyllSite(siteRoot: string): JekyllSite {
   const routes = new Set<string>();
+  if (!fs.statSync(siteRoot, { throwIfNoEntry: false })?.isDirectory()) {
+    core.warning(`site-root ${siteRoot} is not a folder, so links to generated Jekyll pages are not verified.`);
+    return { hasRoute: () => false };
+  }
+
   // Jekyll reads _config.yml, or _config.yaml when there is no _config.yml.
   const configFile = ['_config.yml', '_config.yaml'].map(name => path.join(siteRoot, name)).find(f => fs.existsSync(f));
-  const config = ((configFile && readYamlFile(configFile)) ?? {}) as FrontMatter;
+  const config = ((configFile && readConfigFile(configFile)) ?? {}) as FrontMatter;
 
   const baseurl = typeof config.baseurl === 'string' ? config.baseurl.replace(/\/+$/, '') : '';
   const globalPermalink = resolvePermalinkTemplate(config.permalink, PERMALINK_STYLES.date);
@@ -354,10 +360,16 @@ function readCollections(config: FrontMatter): Map<string, CollectionConfig> {
   return result;
 }
 
-function readYamlFile(filePath: string): unknown {
+/**
+ * Read a Jekyll config file. A file that can't be parsed gives the Jekyll
+ * defaults, with a warning, because the routes can then be wrong.
+ */
+function readConfigFile(filePath: string): unknown {
   try {
     return parseYaml(fs.readFileSync(filePath, 'utf8'));
-  } catch {
+  } catch (err) {
+    const reason = (err instanceof Error ? err.message : String(err)).split('\n')[0].replace(/:$/, '');
+    core.warning(`Cannot parse ${filePath}, so the Jekyll defaults are used: ${reason}`);
     return undefined;
   }
 }
