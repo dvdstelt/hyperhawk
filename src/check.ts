@@ -108,14 +108,16 @@ function collectFiles(dir: string, results: string[]): void {
   }
 }
 
-// Lazily built route table for Jekyll sites
-let jekyllSiteCache: JekyllSite | null = null;
+// Lazily built route table for Jekyll sites, per site root
+const jekyllSiteCache = new Map<string, JekyllSite>();
 
 function getJekyllSite(siteRoot: string): JekyllSite {
-  if (!jekyllSiteCache) {
-    jekyllSiteCache = loadJekyllSite(siteRoot);
+  let site = jekyllSiteCache.get(siteRoot);
+  if (!site) {
+    site = loadJekyllSite(siteRoot);
+    jekyllSiteCache.set(siteRoot, site);
   }
-  return jekyllSiteCache;
+  return site;
 }
 
 function getAllRepoFiles(repoRoot: string): string[] {
