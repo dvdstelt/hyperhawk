@@ -12,7 +12,7 @@
 import * as http from 'http';
 import * as path from 'path';
 import { extractLinks, filterIgnored } from '../src/extract';
-import { checkLinks } from '../src/check';
+import { checkLinks, refPathCandidates } from '../src/check';
 import { Config, CheckResult, LinkInfo } from '../src/types';
 import { mergeResultsForLine } from '../src/report';
 
@@ -313,6 +313,162 @@ async function runRelativeControlsTest(repoRoot: string, testFile: string): Prom
   await summarize('reldepth1', { ...base, relativeSuggestionDepth: 1 });
 }
 
+/**
+ * Verify how same-org /blob/ and /tree/ URLs are split into a ref and a path.
+ * Branch names can contain slashes, so each split with a ref of up to five
+ * segments is a candidate, shortest ref first. A split with no file path is
+ * shown as (root).
+ */
+function runRefPathCandidatesTest(): void {
+  const samples = [
+    'main/docs/guide.md',
+    '2016/CloudConf2016/soa.pptx',
+    'release/1.0',
+    'a/b/c/d/e/f/g/file.md',
+  ];
+  const lines = samples.flatMap(s =>
+    refPathCandidates(s.split('/')).map(c => `refpath:${s} | ${c.ref} | ${c.filePath || '(root)'}`)
+  );
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+/**
+ * Run fn with the ::debug:: lines from @actions/core left out of stdout.
+ */
+async function withoutDebugOutput(fn: () => Promise<void>): Promise<void> {
+  const original = process.stdout.write.bind(process.stdout);
+  process.stdout.write = function (chunk: any, ...args: any[]) {
+    if (typeof chunk === 'string' && chunk.startsWith('::debug::')) return true;
+    return (original as any)(chunk, ...args);
+  } as any;
+  try {
+    await fn();
+  } finally {
+    process.stdout.write = original;
+  }
+}
+
+/**
+ * Verify same-org /blob/ and /tree/ links against a stub GitHub API, so no
+ * network requests are made. Each line ends with the API calls in order,
+ * which pins how many calls a link costs as well as its result.
+ */
+async function runSameOrgApiTest(repoRoot: string): Promise<void> {
+  // The paths on each ref of the stub repos; '' is the root directory.
+  const refs: Record<string, Record<string, 'file' | 'dir'>> = {
+    'main': { '': 'dir', 'docs': 'dir', 'docs/guide.md': 'file', 'docs/new.md': 'file' },
+    'release/1.0': { '': 'dir', 'docs': 'dir', 'docs/guide.md': 'file' },
+    '2016/CloudConf2016': { '': 'dir', 'soa.pptx': 'file' },
+    'v2/rc': { '': 'dir', 'README.md': 'file' },
+  };
+  const tags = new Set(['v2/rc']);
+
+  // fail maps a call, as it appears in the output, to the HTTP status it fails with.
+  // self links to the repo under test, which is checked on disk instead of through the API.
+  const cases: { label: string; path: string; fail?: Record<string, number>; self?: boolean }[] = [
+    { label: 'plain ref', path: '/blob/main/docs/guide.md' },
+    { label: 'slash ref', path: '/blob/2016/CloudConf2016/soa.pptx' },
+    { label: 'renamed default branch', path: '/blob/master/docs/guide.md' },
+    { label: 'blob on a directory', path: '/blob/release/1.0/docs' },
+    { label: 'api error', path: '/blob/main/docs/guide.md', fail: { 'content main|docs/guide.md': 500 } },
+    { label: 'missing file on default branch', path: '/blob/main/docs/missing.md' },
+    { label: 'slash ref, missing file', path: '/blob/release/1.0/docs/missing.md' },
+    { label: 'slash ref, file only on default branch', path: '/blob/release/1.0/docs/new.md' },
+    { label: 'slash tag', path: '/blob/v2/rc/README.md' },
+    { label: 'error on a guessed split', path: '/blob/master/docs/guide.md', fail: { 'content master/docs|guide.md': 500 } },
+    { label: 'ref lookup fails, file on default branch', path: '/blob/master/docs/guide.md', fail: { 'refs heads/master/': 500 } },
+    { label: 'ref lookup fails, file missing', path: '/blob/feature/x/docs/guide.md', fail: { 'refs heads/feature/': 500 } },
+    { label: 'branch root', path: '/tree/release/1.0' },
+    { label: 'branch root as blob', path: '/blob/release/1.0' },
+    { label: 'self-repo slash ref', path: '/blob/release/1.0/README.md', self: true },
+  ];
+
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'acme',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: true,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: [],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+  };
+
+  const httpError = (status: number, message: string): Error => Object.assign(new Error(message), { status });
+
+  const lines: string[] = [];
+  for (const [i, c] of cases.entries()) {
+    // A repo per case, so no cached result carries over from another case.
+    const repoUrl = c.self ? `https://github.com/${config.owner}/${config.repo}` : `https://github.com/acme/repo${i}`;
+    const calls: string[] = [];
+    const record = (call: string): void => {
+      calls.push(call);
+      const status = c.fail?.[call];
+      if (status) throw httpError(status, `HTTP ${status}`);
+    };
+
+    const octokit = {
+      rest: {
+        repos: {
+          get: async () => ({ data: { default_branch: 'main', private: false } }),
+          getContent: async ({ ref, path: filePath }: { ref: string; path: string }) => {
+            record(`content ${ref}|${filePath || '(root)'}`);
+            const tree = refs[ref];
+            if (!tree) throw httpError(404, `No commit found for the ref ${ref}`);
+            const kind = tree[filePath];
+            if (!kind) throw httpError(404, 'Not Found');
+            return { data: kind === 'dir' ? [] : { type: 'file' } };
+          },
+        },
+        git: {
+          // ref is 'heads/<prefix>' or 'tags/<prefix>'.
+          listMatchingRefs: async ({ ref }: { ref: string }) => {
+            record(`refs ${ref}`);
+            const [kind, ...rest] = ref.split('/');
+            const prefix = rest.join('/');
+            const names = Object.keys(refs).filter(name => (kind === 'tags') === tags.has(name) && name.startsWith(prefix));
+            return { data: names.map(name => ({ ref: `refs/${kind}/${name}` })) };
+          },
+        },
+      },
+    };
+
+    const url = repoUrl + c.path;
+    const link: LinkInfo = {
+      url,
+      text: c.label,
+      filePath: 'tests/test-document.md',
+      line: 1,
+      lineContent: `[${c.label}](${url})`,
+      type: 'same-org',
+    };
+
+    let result: CheckResult | undefined;
+    await withoutDebugOutput(async () => {
+      [result] = await checkLinks([link], config, octokit as any);
+    });
+    const r = result!;
+
+    const status = r.ok ? (r.suggestionOnly ? 'suggestion' : 'ok') : 'broken';
+    let detail = '';
+    if (r.correctedUrl) {
+      detail = ` -> ${r.correctedUrl.replace(repoUrl, '')}`;
+    } else if (!r.ok) {
+      detail = ` | ${r.error ?? 'unknown'}`;
+    }
+    lines.push(`sameorg:${c.label} | ${c.path} | ${status}${detail} | ${calls.join(', ') || '(no API calls)'}`);
+  }
+
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(__dirname, '..');
   const testFile = path.join(repoRoot, 'tests', 'test-document.md');
@@ -325,6 +481,8 @@ async function main(): Promise<void> {
     await runIssueTemplateTest(repoRoot, issueTemplateFile);
     await runCodeBlockTest(repoRoot, testFile);
     await runRelativeControlsTest(repoRoot, testFile);
+    runRefPathCandidatesTest();
+    await runSameOrgApiTest(repoRoot);
   } finally {
     await closeServer();
   }
