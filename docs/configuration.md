@@ -141,7 +141,7 @@ When a root-relative link doesn't match a file on disk, HyperHawk computes the s
 - **Pages**, including `index` pages served at their folder URL (`/docs/`)
 - **Collections** with `output: true`, honoring the collection's `permalink`
 - **Redirects** declared with `redirect_from` ([jekyll-redirect-from](https://github.com/jekyll/jekyll-redirect-from))
-- The site's `baseurl`, if links include it
+- The site's `baseurl`: when `_config.yml` sets one, links must start with it, because the site is served under that path
 
 Links are matched the way GitHub Pages serves files: `/about`, `/about.html`, and `/about/` (for `about/index.html`) are all accepted when the page exists. Drafts, posts with `published: false`, collections without `output: true`, and paths listed in `exclude` are not generated, so links to them are still reported as broken.
 

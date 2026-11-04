@@ -266,7 +266,9 @@ export function loadJekyllSite(siteRoot: string): JekyllSite {
   return {
     hasRoute(urlPath: string): boolean {
       let p = urlPath.split('?')[0];
-      if (baseurl && (p === baseurl || p.startsWith(baseurl + '/'))) {
+      // The site is served under its baseurl, so a link without it doesn't reach the site.
+      if (baseurl) {
+        if (p !== baseurl && !p.startsWith(baseurl + '/')) return false;
         p = p.slice(baseurl.length) || '/';
       }
       p = normalize(p);

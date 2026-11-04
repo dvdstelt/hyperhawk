@@ -124,23 +124,23 @@ sameorg:ref lookup fails, file missing | /blob/feature/x/docs/guide.md | broken 
 sameorg:branch root | /tree/release/1.0 | ok | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:branch root as blob | /blob/release/1.0 | suggestion -> /tree/release/1.0 | content release|1.0, refs heads/release/, refs tags/release/, content release/1.0|(root)
 sameorg:self-repo slash ref | /blob/release/1.0/README.md | suggestion -> /README.md | (no API calls)
-jekyll:10 | /2024/01/15/hello-world | ok
-jekyll:11 | /2024/01/15/hello-world.html#section | ok
-jekyll:12 | /blog/2024/01/15/hello-world.html | ok
-jekyll:13 | /old/hello.html | ok
-jekyll:14 | /news/2024/02/01/with-category.html | ok
-jekyll:15 | /travel/2024/03/10/trip.html | ok
-jekyll:16 | /custom-url/ | ok
-jekyll:17 | /talks/intro.html | ok
-jekyll:18 | /cookbook/pasta/ | ok
-jekyll:19 | /about.html | ok
-jekyll:20 | /about | ok
-jekyll:21 | /docs/ | ok
-jekyll:22 | /docs/index.html | ok
-jekyll:23 | /files/notes.txt | ok
-jekyll:27 | /2024/05/01/unpublished.html | broken
-jekyll:28 | /2024/01/16/hello-world.html | broken
-jekyll:29 | /draft.html | broken
-jekyll:30 | /notes/note.html | broken
-jekyll:31 | /excluded/page.html | broken
-jekyll:9 | /2024/01/15/hello-world.html | ok
+jekyll:10 | /blog/2024/01/15/hello-world | ok
+jekyll:11 | /blog/2024/01/15/hello-world.html#section | ok
+jekyll:12 | /blog/old/hello.html | ok
+jekyll:13 | /blog/news/2024/02/01/with-category.html | ok
+jekyll:14 | /blog/travel/2024/03/10/trip.html | ok
+jekyll:15 | /blog/custom-url/ | ok
+jekyll:16 | /blog/talks/intro.html | ok
+jekyll:17 | /blog/cookbook/pasta/ | ok
+jekyll:18 | /blog/about.html | ok
+jekyll:19 | /blog/about | ok
+jekyll:20 | /blog/docs/ | ok
+jekyll:21 | /blog/docs/index.html | ok
+jekyll:22 | /blog/files/notes.txt | ok
+jekyll:26 | /blog/2024/05/01/unpublished.html | broken
+jekyll:27 | /blog/2024/01/16/hello-world.html | broken
+jekyll:28 | /blog/draft.html | broken
+jekyll:29 | /blog/notes/note.html | broken
+jekyll:30 | /blog/excluded/page.html | broken
+jekyll:31 | /2024/01/15/hello-world.html | broken
+jekyll:9 | /blog/2024/01/15/hello-world.html | ok
