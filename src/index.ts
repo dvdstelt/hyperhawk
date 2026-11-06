@@ -1,11 +1,11 @@
 import * as core from '@actions/core';
 import { context, getOctokit } from '@actions/github';
-import * as glob from '@actions/glob';
 import minimatch from 'minimatch';
 import * as path from 'path';
 import { Config, SiteGenerator } from './types';
 import { extractLinks, filterIgnored } from './extract';
 import { checkLinks } from './check';
+import { globFiles } from './files';
 import { report } from './report';
 
 async function getChangedMdFiles(octokit: ReturnType<typeof getOctokit>): Promise<string[]> {
@@ -224,23 +224,6 @@ function parseSiteGenerator(raw: string): SiteGenerator {
   if (value === 'jekyll') return 'jekyll';
   core.warning(`Unknown site-generator "${raw}"; supported values are "jekyll" and "none". Falling back to "none".`);
   return 'none';
-}
-
-async function globFiles(patterns: string[], repoRoot: string): Promise<string[]> {
-  const excludePatterns = [
-    '!**/node_modules/**',
-    '!**/.git/**',
-    '!**/dist/**',
-    '!**/lib/**',
-  ];
-
-  const globPatterns = [
-    ...patterns.map(p => path.join(repoRoot, p)),
-    ...excludePatterns,
-  ];
-
-  const globber = await glob.create(globPatterns.join('\n'));
-  return globber.glob();
 }
 
 run();
