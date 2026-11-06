@@ -549,6 +549,11 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
   const cached = resultCache.get(link.url);
   if (cached) {
     core.debug(`[same-org] Cache hit for ${link.url}: ok=${cached.ok}`);
+    // Reconstruct suggestion from cached correctedUrl since lineContent varies per call site
+    if (cached.correctedUrl && cached.suggestionOnly) {
+      const suggestion = link.lineContent.trimEnd().replace(link.url, () => cached.correctedUrl!);
+      return { link, ...cached, suggestion };
+    }
     return { link, ...cached };
   }
 

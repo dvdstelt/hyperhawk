@@ -674,6 +674,67 @@ async function runSameOrgCommentTest(repoRoot: string): Promise<void> {
 }
 
 /**
+ * Verify that a same-org URL that occurs on two lines gets a suggestion for
+ * each line. The second occurrence comes from the result cache, so the last
+ * line shows that it costs no API calls.
+ */
+async function runSameOrgCacheTest(repoRoot: string): Promise<void> {
+  const config: Config = {
+    token: '',
+    repoRoot,
+    owner: 'acme',
+    repo: 'hyperhawk',
+    strict: false,
+    checkExternal: false,
+    checkSameOrg: true,
+    checkRelative: true,
+    relativeSuggestionDepth: 0,
+    ignorePatterns: [],
+    timeout: 5000,
+    filePatterns: [],
+    concurrency: 1,
+    skipCodeBlocks: false,
+    reportOnlyChanged: false,
+    siteGenerator: 'none',
+    siteRoot: repoRoot,
+  };
+
+  const calls: string[] = [];
+  const octokit = {
+    rest: {
+      repos: {
+        get: async () => ({ data: { default_branch: 'main', private: false } }),
+        getContent: async ({ ref, path: filePath }: { ref: string; path: string }) => {
+          calls.push(`content ${ref}|${filePath}`);
+          if (ref !== 'main') throw Object.assign(new Error(`No commit found for the ref ${ref}`), { status: 404 });
+          if (filePath === 'docs') return { data: [] };
+          throw Object.assign(new Error('Not Found'), { status: 404 });
+        },
+      },
+    },
+  };
+
+  // A directory linked with /blob/, so each line gets a /tree/ suggestion.
+  const url = 'https://github.com/acme/cache-repo/blob/main/docs';
+  const links: LinkInfo[] = [
+    { url, text: 'docs', filePath: 'tests/test-document.md', line: 1, lineContent: `See the [docs](${url}).`, type: 'same-org' },
+    { url, text: 'the docs', filePath: 'tests/test-document.md', line: 2, lineContent: `Read [the docs](${url}) first.`, type: 'same-org' },
+  ];
+
+  let results: CheckResult[] = [];
+  await withoutDebugOutput(async () => {
+    results = await checkLinks(links, config, octokit as any);
+  });
+
+  const lines = results.map(r => {
+    const status = r.ok ? (r.suggestionOnly ? 'suggestion' : 'ok') : 'broken';
+    return `samecache:${r.link.line} | ${status} | ${r.suggestion ?? '(no suggestion)'}`;
+  });
+  lines.push(`samecache:calls | ${calls.join(', ')}`);
+  process.stdout.write(lines.join('\n') + '\n');
+}
+
+/**
  * Verify site-generator: jekyll. Root-relative links in tests/jekyll-site/links.md
  * point to pages Jekyll generates at build time (posts, collections, permalinks,
  * redirect_from, baseurl) and to pages it doesn't generate (drafts, unpublished
@@ -798,6 +859,7 @@ async function main(): Promise<void> {
     await runSameOrgApiTest(repoRoot);
     await runSummaryTest(repoRoot);
     await runSameOrgCommentTest(repoRoot);
+    await runSameOrgCacheTest(repoRoot);
     await runJekyllTest(repoRoot);
     await runJekyllConfigTest(repoRoot);
   } finally {
