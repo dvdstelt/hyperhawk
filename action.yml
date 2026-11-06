@@ -37,6 +37,11 @@ inputs:
     description: Comma-separated list of URL patterns to ignore (regex)
     required: false
     default: ''
+  exclude:
+    description: >
+      YAML map from a feature to the glob patterns of the files where that feature is off. Patterns match the path of the markdown file from the repository root; quote patterns that start with *. Supported features: suggest-local-path (keep full GitHub URLs to the current repository, for files that become issue bodies). See docs/configuration.md.
+    required: false
+    default: ''
   timeout:
     description: Timeout in milliseconds for external link checks
     required: false
