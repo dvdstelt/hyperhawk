@@ -160,6 +160,10 @@ summary:file | | `tests/test-document.md` | 2 | `https://github.com/acme/hyperha
 summary:file | | `tests/test-document.md` | 3 | `https://github.com/acme/summary-blob/blob/main/docs` | `https://github.com/acme/summary-blob/tree/main/docs` |
 summary:file | | `tests/test-document.md` | 4 | `https://github.com/acme/summary-branch/blob/master/docs/guide.md` | `https://github.com/acme/summary-branch/blob/main/docs/guide.md` |
 summary:calls | content main|docs, content master|docs/guide.md, refs heads/master/, refs tags/master/, content main|docs/guide.md
+samecomment:self-repo | This link points to the current repository. Use `/README.md` instead.
+samecomment:blob on a directory | This link works, but a better URL exists. Use `https://github.com/acme/comment-tree/tree/main/docs` instead.
+samecomment:renamed default branch | This link works, but a better URL exists. Use `https://github.com/acme/comment-branch/blob/main/docs/guide.md` instead.
+samecomment:calls | content main|docs, content master|docs/guide.md, refs heads/master/, refs tags/master/, content main|docs/guide.md
 jekyll:10 | /blog/2024/01/15/hello-world | ok
 jekyll:11 | /blog/2024/01/15/hello-world.html#section | ok
 jekyll:12 | /blog/old/hello.html | ok

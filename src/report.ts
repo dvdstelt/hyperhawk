@@ -114,7 +114,12 @@ function formatImprovementComment(result: CheckResult): string {
     ].join('\n');
   }
   if (link.type === 'same-org' && correctedUrl) {
-    return `This link points to the current repository. Use \`${correctedUrl}\` instead.`;
+    // A link to the current repository gets a local path. A link to another
+    // repository keeps a full URL with a fixed /blob/ or /tree/, or branch.
+    if (!/^https?:\/\//.test(correctedUrl)) {
+      return `This link points to the current repository. Use \`${correctedUrl}\` instead.`;
+    }
+    return `This link works, but a better URL exists. Use \`${correctedUrl}\` instead.`;
   }
   return [
     `**HyperHawk** suggests converting this relative link to a root-relative path so it stays valid if this file is moved.`,
