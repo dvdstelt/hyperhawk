@@ -878,10 +878,10 @@ async function runGlobFilesTest(repoRoot: string): Promise<void> {
 }
 
 /**
- * Verify the exclude input for suggest-local-path. In an excluded file, full
+ * Verify the exclude input for set-absolute-path. In an excluded file, full
  * URLs to the current repository stay full URLs: a valid link gets no
- * local-path suggestion, and a broken one gets a corrected full URL. The same
- * links in a file that is not excluded get local-path suggestions.
+ * absolute-path suggestion, and a broken one gets a corrected full URL. The same
+ * links in a file that is not excluded get absolute-path suggestions.
  */
 async function runExcludeTest(repoRoot: string): Promise<void> {
   const draftFile = path.join(repoRoot, 'tests', 'issue-draft.md');
@@ -928,7 +928,7 @@ async function runExcludeTest(repoRoot: string): Promise<void> {
     process.stdout.write(lines.join('\n') + '\n');
   };
 
-  await summarize('exclude', { ...base, exclude: { 'suggest-local-path': ['tests/issue-*.md'] } });
+  await summarize('exclude', { ...base, exclude: { 'set-absolute-path': ['tests/issue-*.md'] } });
   await summarize('noexclude', base);
 }
 
@@ -939,12 +939,12 @@ async function runExcludeTest(repoRoot: string): Promise<void> {
 function runExcludeParseTest(): void {
   const inputs: { label: string; raw: string }[] = [
     { label: 'empty', raw: '' },
-    { label: 'list', raw: "suggest-local-path:\n  - issue-drafts/**\n  - '**/drafts/**'" },
-    { label: 'single pattern', raw: 'suggest-local-path: issue-drafts/**' },
-    { label: 'unknown feature', raw: 'suggest-local-paths:\n  - issue-drafts/**' },
-    { label: 'unquoted star', raw: 'suggest-local-path:\n  - **/drafts/**' },
+    { label: 'list', raw: "set-absolute-path:\n  - issue-drafts/**\n  - '**/drafts/**'" },
+    { label: 'single pattern', raw: 'set-absolute-path: issue-drafts/**' },
+    { label: 'unknown feature', raw: 'set-absolute-paths:\n  - issue-drafts/**' },
+    { label: 'unquoted star', raw: 'set-absolute-path:\n  - **/drafts/**' },
     { label: 'not a map', raw: '- issue-drafts/**' },
-    { label: 'not patterns', raw: 'suggest-local-path:\n  - 42' },
+    { label: 'not patterns', raw: 'set-absolute-path:\n  - 42' },
   ];
   for (const { label, raw } of inputs) {
     const exclude = parseExclude(raw);

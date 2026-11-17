@@ -105,7 +105,7 @@ The `exclude` input turns off a feature for the files that match a glob pattern.
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
     exclude: |
-      suggest-local-path:
+      set-absolute-path:
         - issue-drafts/**
         - '**/drafts/**'
 ```
@@ -116,11 +116,11 @@ If the YAML is not valid, a feature is unknown, or a value is not a list of patt
 
 | Feature | What it turns off |
 |---------|-------------------|
-| `suggest-local-path` | The suggestion to rewrite a full GitHub URL to the current repository as a local path. |
+| `set-absolute-path` | The suggestion to rewrite a full GitHub URL to the current repository as an absolute path, such as `/docs/guide.md`, or as the file name for a file in the same folder. |
 
 ### Keeping full URLs in issue drafts
 
-Some repositories draft issues as markdown files in a pull request, and later create the issue from the file. Local paths do not work in an issue, so links to the same repository must stay full URLs. Exclude these files from `suggest-local-path`.
+Some repositories draft issues as markdown files in a pull request, and later create the issue from the file. Local paths do not work in an issue, so links to the same repository must stay full URLs. Exclude these files from `set-absolute-path`.
 
 HyperHawk still checks that the target of each full URL exists in the checkout. A valid link gets no suggestion. A broken link is reported, and if HyperHawk finds the file in another location, it suggests a corrected full URL instead of a local path.
 

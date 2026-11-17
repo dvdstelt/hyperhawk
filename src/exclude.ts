@@ -3,7 +3,7 @@ import minimatch from 'minimatch';
 import { parse as parseYaml } from 'yaml';
 import { Config, ExcludableFeature } from './types';
 
-const EXCLUDABLE_FEATURES: readonly ExcludableFeature[] = ['suggest-local-path'];
+const EXCLUDABLE_FEATURES: readonly ExcludableFeature[] = ['set-absolute-path'];
 
 /**
  * Parse the exclude input: YAML that maps a feature to the glob patterns of

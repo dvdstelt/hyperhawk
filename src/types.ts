@@ -3,7 +3,7 @@ export type LinkType = 'internal' | 'same-org' | 'external';
 export type SiteGenerator = 'none' | 'jekyll';
 
 // Features that the exclude input can turn off for some files.
-export type ExcludableFeature = 'suggest-local-path';
+export type ExcludableFeature = 'set-absolute-path';
 
 export interface LinkInfo {
   url: string;

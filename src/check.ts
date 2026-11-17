@@ -394,15 +394,15 @@ function relativeLinkDepth(relativePath: string): number {
 
 /**
  * Suggest rewriting a full GitHub URL that points to the current repo
- * as a local path. Uses the same convention as checkInternal: same-folder
+ * as an absolute path. Uses the same convention as checkInternal: same-folder
  * files use a bare filename, everything else uses a root-relative path.
  *
- * Issue templates and files excluded from suggest-local-path keep full URLs:
+ * Issue templates and files excluded from set-absolute-path keep full URLs:
  * the target is still checked on disk, but a valid link gets no suggestion
  * and a broken one gets a corrected full URL.
  */
-function suggestLocalPath(link: LinkInfo, parts: string[], config: Config): CheckResult {
-  const keepFullUrl = isIssueTemplate(link.filePath) || isExcluded(config, 'suggest-local-path', link.filePath);
+function setAbsolutePath(link: LinkInfo, parts: string[], config: Config): CheckResult {
+  const keepFullUrl = isIssueTemplate(link.filePath) || isExcluded(config, 'set-absolute-path', link.filePath);
   // parts: [owner, repo, 'blob'|'tree', ...refAndPathParts] or [owner, repo, ...]
   const hasFilePath = parts.length > 4 && (parts[2] === 'blob' || parts[2] === 'tree');
 
@@ -615,11 +615,11 @@ async function checkSameOrg(link: LinkInfo, octokit: Octokit, config: Config): P
     const repoOwner = parts[0];
     const repoName = parts[1];
 
-    // Self-repo link: suggest rewriting as a local path instead of a full URL
+    // Self-repo link: suggest rewriting as an absolute path instead of a full URL
     if (repoOwner.toLowerCase() === config.owner.toLowerCase()
         && repoName.toLowerCase() === config.repo.toLowerCase()) {
       core.debug(`[same-org] URL points to current repo, suggesting local path: ${link.url}`);
-      return suggestLocalPath(link, parts, config);
+      return setAbsolutePath(link, parts, config);
     }
 
     core.debug(`[same-org] Verifying repo ${repoOwner}/${repoName} via authenticated API`);
