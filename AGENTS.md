@@ -15,6 +15,7 @@ src/
   types.ts               <- shared interfaces (LinkInfo, CheckResult, Config)
   extract.ts             <- link extraction from markdown files
   check.ts               <- link verification (internal / same-org / external)
+  exclude.ts             <- exclude input: parsing and per-file feature checks
   report.ts              <- PR review comments and step summary reporting
 dist/
   index.js               <- ncc-bundled output; committed and kept in sync with src/
@@ -79,7 +80,7 @@ For a directory, return `{ data: [] }`. Rules for the stub:
 
 - Use a different URL for each test case. `resultCache` keeps the result of each URL for the full run.
 - Make `repos.get` succeed. A 404 from `repos.get` starts `looksPrivate`, which sends a real request to GitHub.
-- Use a repository name that is different from `config.repo`. Links to the current repository go to `suggestLocalPath` and do not use the API.
+- Use a repository name that is different from `config.repo`. Links to the current repository go to `setAbsolutePath` and do not use the API.
 - Give each error a `status` property, as in the example.
 - Use the 404 messages of the GitHub API: `No commit found for the ref <ref>` for a missing ref, and `Not Found` for a missing path.
 - Write the list of API calls into the test output. Then the snapshot also catches changes to the order and the number of calls.
